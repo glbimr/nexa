@@ -1089,7 +1089,6 @@ const TaskEditor: React.FC<{
                               type="button"
                               onClick={() => setLocalEditingSubtask(sub)}
                               className="p-1 text-slate-400 hover:text-indigo-600"
-                              disabled={readOnly}
                             >
                               <Settings size={14} />
                             </button>
