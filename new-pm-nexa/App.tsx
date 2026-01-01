@@ -504,6 +504,13 @@ const MainLayout: React.FC = () => {
 
             <div className="w-full space-y-2 mt-auto">
               <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all text-[11px] shadow-sm flex items-center justify-center space-x-2"
+              >
+                <Upload size={12} />
+                <span>Upload Custom</span>
+              </button>
+              <button
                 onClick={() => {
                   setPasswordError('');
                   setPasswordSuccess('');
@@ -516,13 +523,6 @@ const MainLayout: React.FC = () => {
               >
                 <Lock size={12} />
                 <span>Change Password</span>
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all text-[11px] shadow-sm flex items-center justify-center space-x-2"
-              >
-                <Upload size={12} />
-                <span>Upload Custom</span>
               </button>
               <button
                 onClick={() => {
