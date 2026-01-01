@@ -129,7 +129,7 @@ const TaskCardItem: React.FC<{
       }}
       className={`bg-white p-3 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 transition-all group relative 
         ${canEdit ? 'cursor-grab active:cursor-grabbing hover:shadow-lg hover:border-indigo-100 hover:-translate-y-0.5' : 'cursor-default opacity-90'}
-        ${isAssigning ? 'z-20 ring-2 ring-indigo-100 shadow-xl' : 'z-0'}
+        ${(isAssigning || assigningSubtaskId) ? 'z-[100] ring-2 ring-indigo-100 shadow-xl' : 'z-0'}
       `}
     >
       {/* 1. Header: Badges Left, Actions Right */}
