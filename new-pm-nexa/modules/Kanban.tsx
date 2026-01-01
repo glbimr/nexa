@@ -199,7 +199,7 @@ const TaskCardItem: React.FC<{
             {assignee ? (
               <div className="relative">
                 <img src={assignee.avatar} alt={assignee.name} className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm" />
-                {isEditable && <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-slate-200"><Settings size={10} className="text-slate-500" /></div>}
+                {isEditable && <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-slate-200"><Pencil size={10} className="text-slate-500" /></div>}
               </div>
             ) : (
               <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border-2 border-slate-50 border-dashed hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-500 transition-colors">
@@ -581,6 +581,7 @@ const TaskEditor: React.FC<{
   const [showMentions, setShowMentions] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string, type: 'comment' | 'attachment' } | null>(null);
 
   // Title Edit State
   const [isTitleActive, setIsTitleActive] = useState(false);
@@ -647,11 +648,9 @@ const TaskEditor: React.FC<{
   };
 
   const deleteComment = (commentId: string) => {
-    if (window.confirm("Are you sure you want to delete this comment?")) {
-      const updatedTask = { ...formData, comments: formData.comments.filter(c => c.id !== commentId) };
-      setFormData(updatedTask);
-      updateTask(updatedTask); // Auto-save
-    }
+    const updatedTask = { ...formData, comments: formData.comments.filter(c => c.id !== commentId) };
+    setFormData(updatedTask);
+    updateTask(updatedTask); // Auto-save
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -684,17 +683,17 @@ const TaskEditor: React.FC<{
         }
       }
 
-      setFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...newAttachments] }));
+      const updatedTask = { ...formData, attachments: [...formData.attachments, ...newAttachments] };
+      setFormData(updatedTask);
+      updateTask(updatedTask); // Auto-save
       e.target.value = ''; // Reset
     }
   };
 
   const removeAttachment = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this attachment?")) {
-      const updatedTask = { ...formData, attachments: formData.attachments.filter(a => a.id !== id) };
-      setFormData(updatedTask);
-      updateTask(updatedTask); // Auto-save
-    }
+    const updatedTask = { ...formData, attachments: formData.attachments.filter(a => a.id !== id) };
+    setFormData(updatedTask);
+    updateTask(updatedTask); // Auto-save
   };
 
   // Mention Handlers
@@ -730,114 +729,114 @@ const TaskEditor: React.FC<{
   const filteredUsers = users.filter(u => u.name.toLowerCase().startsWith(mentionQuery.toLowerCase()));
 
   return (
-    <Modal isOpen={true} onClose={onClose} title="Edit Task" maxWidth="max-w-6xl" className="h-[90vh]" noScroll={true}>
-      <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+    <>
+      <Modal isOpen={true} onClose={onClose} title="Edit Task" maxWidth="max-w-6xl" className="h-[90vh]" noScroll={true}>
+        <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
 
-        {/* Universal Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('details')}
-            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('chatter')}
-            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Chatter
-          </button>
-        </div>
+          {/* Universal Tabs */}
+          <div className="flex border-b border-slate-200 bg-slate-50 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('details')}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('chatter')}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Chatter
+            </button>
+          </div>
 
-        {/* Scrollable Content Area: Single scroll for entire form except fixed footer */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-0">
-          <div className="flex flex-col lg:flex-row min-h-full">
+          {/* Scrollable Content Area: Single scroll for entire form except fixed footer */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-0">
+            <div className="flex flex-col lg:flex-row min-h-full">
 
-            {/* LEFT COLUMN: Main Content */}
-            <div className="flex-1 p-6 md:p-8 bg-white border-r border-slate-100">
+              {/* LEFT COLUMN: Main Content */}
+              <div className="flex-1 p-6 md:p-8 bg-white border-r border-slate-100">
 
-              {/* Title */}
-              <div className={`mb-6 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Task Title
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!readOnly) {
-                        const newState = !isTitleActive;
-                        setIsTitleActive(newState);
-                        if (newState) setTimeout(() => titleInputRef.current?.focus(), 0);
-                      }
-                    }}
-                    disabled={readOnly}
-                    className={`p-1.5 rounded transition-all ${isTitleActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
-                    title={isTitleActive ? "Disable Editing" : "Enable Editing"}
-                  >
-                    {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
-                  </button>
-                </div>
-                <input
-                  ref={titleInputRef}
-                  required
-                  readOnly={readOnly || !isTitleActive}
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  className={`w-full text-xl md:text-2xl font-bold rounded-lg px-4 py-3 outline-none transition-all border
+                {/* Title */}
+                <div className={`mb-6 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Task Title
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!readOnly) {
+                          const newState = !isTitleActive;
+                          setIsTitleActive(newState);
+                          if (newState) setTimeout(() => titleInputRef.current?.focus(), 0);
+                        }
+                      }}
+                      disabled={readOnly}
+                      className={`p-1.5 rounded transition-all ${isTitleActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                      title={isTitleActive ? "Disable Editing" : "Enable Editing"}
+                    >
+                      {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
+                    </button>
+                  </div>
+                  <input
+                    ref={titleInputRef}
+                    required
+                    readOnly={readOnly || !isTitleActive}
+                    type="text"
+                    value={formData.title}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    className={`w-full text-xl md:text-2xl font-bold rounded-lg px-4 py-3 outline-none transition-all border
                         ${isTitleActive
-                      ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
-                      : 'bg-slate-50 border-slate-100 text-slate-700 cursor-default'}`}
-                  placeholder="Task Title"
-                />
-              </div>
-
-              {/* Description */}
-              <div className={`mb-8 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Description
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!readOnly) {
-                        const newState = !isDescriptionActive;
-                        setIsDescriptionActive(newState);
-                        if (newState) setTimeout(() => descriptionInputRef.current?.focus(), 0);
-                      }
-                    }}
-                    disabled={readOnly}
-                    className={`p-1.5 rounded transition-all ${isDescriptionActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
-                    title={isDescriptionActive ? "Disable Editing" : "Enable Editing"}
-                  >
-                    {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
-                  </button>
+                        ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
+                        : 'bg-slate-50 border-slate-100 text-slate-700 cursor-default'}`}
+                    placeholder="Task Title"
+                  />
                 </div>
-                <textarea
-                  ref={descriptionInputRef}
-                  readOnly={readOnly || !isDescriptionActive}
-                  value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  className={`w-full rounded-lg p-4 min-h-[120px] outline-none resize-none transition-all leading-relaxed border
-                        ${isDescriptionActive
-                      ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
-                      : 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'}`}
-                  placeholder={isDescriptionActive ? "Add a detailed description..." : "No description provided."}
-                />
-              </div>
 
-              {/* Attachments Section */}
-              <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
-                    {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
-                    ATTACHMENTS ({formData.attachments.length})
-                  </button>
-                  {!readOnly && (
+                {/* Description */}
+                <div className={`mb-8 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Description
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!readOnly) {
+                          const newState = !isDescriptionActive;
+                          setIsDescriptionActive(newState);
+                          if (newState) setTimeout(() => descriptionInputRef.current?.focus(), 0);
+                        }
+                      }}
+                      disabled={readOnly}
+                      className={`p-1.5 rounded transition-all ${isDescriptionActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                      title={isDescriptionActive ? "Disable Editing" : "Enable Editing"}
+                    >
+                      {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
+                    </button>
+                  </div>
+                  <textarea
+                    ref={descriptionInputRef}
+                    readOnly={readOnly || !isDescriptionActive}
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    className={`w-full rounded-lg p-4 min-h-[120px] outline-none resize-none transition-all leading-relaxed border
+                        ${isDescriptionActive
+                        ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
+                        : 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'}`}
+                    placeholder={isDescriptionActive ? "Add a detailed description..." : "No description provided."}
+                  />
+                </div>
+
+                {/* Attachments Section */}
+                <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
+                      {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
+                      ATTACHMENTS ({formData.attachments.length})
+                    </button>
                     <>
                       <button
                         type="button"
@@ -849,339 +848,378 @@ const TaskEditor: React.FC<{
                       </button>
                       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                     </>
-                  )}
-                </div>
-
-                {showAttachments && (
-                  <div className="space-y-2">
-                    {formData.attachments.map(att => (
-                      <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
-                        <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
-                          <FileText size={12} />
-                        </div>
-                        <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
-                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
-                          <p className="text-[10px] text-slate-400">{att.size}</p>
-                        </button>
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
-                          <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
-                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
                   </div>
-                )}
-              </div>
 
-              {/* Comments Section */}
-              <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
-                <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                  Comments ({formData.comments.length})
-                </label>
-
-                {/* Comment Input - Enabled for everyone */}
-                <div className="flex gap-2 mb-4">
-                  <div className="relative flex-1">
-                    <input
-                      ref={commentInputRef}
-                      type="text"
-                      value={newComment}
-                      onChange={handleCommentChange}
-                      placeholder="Write a comment... (use @ to mention)"
-                      className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
-                    />
-                    <button
-                      type="button"
-                      onClick={addComment}
-                      className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
-                    >
-                      <Send size={16} />
-                    </button>
-                    {showMentions && filteredUsers.length > 0 && (
-                      <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                        {filteredUsers.map(u => (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => insertMention(u.name)}
-                            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
-                          >
-                            <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
-                            <span className="text-sm text-slate-700 font-medium">{u.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Comments List */}
-                <div className="space-y-3">
-                  {[...formData.comments].reverse().map(c => {
-                    const u = users.find(user => user.id === c.userId);
-                    return (
-                      <div key={c.id} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
-                        <img src={u?.avatar} className="w-8 h-8 rounded-full border border-slate-200 bg-white" alt={u?.name} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <span className="text-sm font-semibold text-slate-700">{u?.name}</span>
-                            <span className="text-[10px] text-slate-400">{new Date(c.timestamp).toLocaleString()}</span>
-                          </div>
-                          <p className="text-sm text-slate-600 mt-1 break-words leading-relaxed">
-                            {renderWithMentions(c.text, users)}
-                          </p>
-                        </div>
-                        {(c.userId === currentUser?.id || currentUser?.role === 'ADMIN') && (
-                          <button
-                            type="button"
-                            onClick={() => deleteComment(c.id)}
-                            className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN: Sidebar Metadata & Lists */}
-            <div className={`w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6 ${activeTab === 'details' ? 'flex' : 'hidden'}`}>
-
-              <div className="grid grid-cols-2 gap-4">
-                {/* Status / Completed */}
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
-                  <select
-                    value={formData.status}
-                    onChange={e => {
-                      const newStatus = e.target.value as TaskStatus;
-                      setFormData({ ...formData, status: newStatus });
-                    }}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value={TaskStatus.TODO}>To Do</option>
-                    <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
-                    <option value={TaskStatus.DONE}>Completed</option>
-                  </select>
-                </div>
-
-                {/* Category */}
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Category</label>
-                  <select
-                    disabled={readOnly}
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value as TaskCategory })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value={TaskCategory.TASK}>Task</option>
-                    <option value={TaskCategory.STORY}>Story</option>
-                    <option value={TaskCategory.ISSUE}>Issue</option>
-                    <option value={TaskCategory.BUG}>Bug</option>
-                  </select>
-                </div>
-
-                {/* Assignee */}
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Assignee</label>
-                  <div className="relative">
-                    <select
-                      value={formData.assigneeId || ''}
-                      onChange={e => setFormData({ ...formData, assigneeId: e.target.value || undefined })}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Priority */}
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Priority</label>
-                  <select
-                    disabled={readOnly}
-                    value={formData.priority}
-                    onChange={e => setFormData({ ...formData, priority: e.target.value as any })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-
-                {/* Due Date */}
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Due Date</label>
-                  <input
-                    readOnly={readOnly}
-                    type="date"
-                    value={formData.dueDate || ''}
-                    onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Subtasks Section */}
-              <div className="col-span-2 border-t border-slate-200/60 pt-4 pb-2">
-                <div className="flex items-center justify-between mb-3">
-                  <button type="button" onClick={() => setShowSubtasks(!showSubtasks)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
-                    {showSubtasks ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
-                    SUBTASKS ({formData.subtasks.length})
-                  </button>
-                </div>
-
-                {showSubtasks && (
-                  <div className="space-y-3 animate-in slide-in-from-top-2 duration-200 mb-4">
-                    {!readOnly && (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={newSubtaskTitle}
-                          onChange={e => setNewSubtaskTitle(e.target.value)}
-                          placeholder="New subtask..."
-                          className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
-                          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSubtask())}
-                        />
-                        <button
-                          type="button"
-                          onClick={addSubtask}
-                          disabled={!newSubtaskTitle.trim()}
-                          className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 disabled:opacity-50"
-                        >
-                          <Plus size={18} />
-                        </button>
-                      </div>
-                    )}
-
+                  {showAttachments && (
                     <div className="space-y-2">
-                      {formData.subtasks.map(sub => (
-                        <div key={sub.id} className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg hover:border-indigo-300 transition-colors group">
-                          <div className="flex items-center flex-1 min-w-0 mr-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updatedSubtasks = formData.subtasks.map(s => s.id === sub.id ? { ...s, completed: !s.completed, status: !s.completed ? TaskStatus.DONE : TaskStatus.TODO } : s);
-                                const updatedTask = { ...formData, subtasks: updatedSubtasks };
-                                setFormData(updatedTask);
-                              }}
-                              className={`mr-2 flex-shrink-0 ${sub.completed ? 'text-green-500' : 'text-slate-300 hover:text-indigo-500'}`}
-                            >
-                              {sub.completed ? <CheckSquare size={16} /> : <Square size={16} />}
-                            </button>
-                            <span className={`text-sm truncate ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{sub.title}</span>
+                      {formData.attachments.map(att => (
+                        <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
+                          <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
+                            <FileText size={12} />
                           </div>
-
-                          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => setLocalEditingSubtask(sub)}
-                              className="p-1 text-slate-400 hover:text-indigo-600"
-                              disabled={readOnly}
-                            >
-                              <Settings size={14} />
-                            </button>
-                            {!readOnly && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updatedTask = { ...formData, subtasks: formData.subtasks.filter(s => s.id !== sub.id) };
-                                  setFormData(updatedTask);
-                                }}
-                                className="p-1 text-slate-400 hover:text-red-500"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                          <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
+                            <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
+                            <p className="text-[10px] text-slate-400">{att.size}</p>
+                          </button>
+                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
+                            <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
+                            {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                              <button type="button" onClick={() => setItemToDelete({ id: att.id, type: 'attachment' })} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
                             )}
                           </div>
                         </div>
                       ))}
+                      {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Comments Section */}
+                <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
+                  <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                    Comments ({formData.comments.length})
+                  </label>
+
+                  {/* Comment Input - Enabled for everyone */}
+                  <div className="flex gap-2 mb-4">
+                    <div className="relative flex-1">
+                      <input
+                        ref={commentInputRef}
+                        type="text"
+                        value={newComment}
+                        onChange={handleCommentChange}
+                        placeholder="Write a comment... (use @ to mention)"
+                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
+                      />
+                      <button
+                        type="button"
+                        onClick={addComment}
+                        className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
+                      >
+                        <Send size={16} />
+                      </button>
+                      {showMentions && filteredUsers.length > 0 && (
+                        <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                          {filteredUsers.map(u => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => insertMention(u.name)}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
+                            >
+                              <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
+                              <span className="text-sm text-slate-700 font-medium">{u.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+
+                  {/* Comments List */}
+                  <div className="space-y-3">
+                    {[...formData.comments].reverse().map(c => {
+                      const u = users.find(user => user.id === c.userId);
+                      return (
+                        <div key={c.id} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
+                          <img src={u?.avatar} className="w-8 h-8 rounded-full border border-slate-200 bg-white" alt={u?.name} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <span className="text-sm font-semibold text-slate-700">{u?.name}</span>
+                              <span className="text-[10px] text-slate-400">{new Date(c.timestamp).toLocaleString()}</span>
+                            </div>
+                            <p className="text-sm text-slate-600 mt-1 break-words leading-relaxed">
+                              {renderWithMentions(c.text, users)}
+                            </p>
+                          </div>
+                          {(c.userId === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                            <button
+                              type="button"
+                              onClick={() => setItemToDelete({ id: c.id, type: 'comment' })}
+                              className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
+              {/* RIGHT COLUMN: Sidebar Metadata & Lists */}
+              <div className={`w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6 ${activeTab === 'details' ? 'flex' : 'hidden'}`}>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Status / Completed */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
+                    <select
+                      value={formData.status}
+                      onChange={e => {
+                        const newStatus = e.target.value as TaskStatus;
+                        setFormData({ ...formData, status: newStatus });
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value={TaskStatus.TODO}>To Do</option>
+                      <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
+                      <option value={TaskStatus.DONE}>Completed</option>
+                    </select>
+                  </div>
+
+                  {/* Category */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Category</label>
+                    <select
+                      disabled={readOnly}
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value as TaskCategory })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value={TaskCategory.TASK}>Task</option>
+                      <option value={TaskCategory.STORY}>Story</option>
+                      <option value={TaskCategory.ISSUE}>Issue</option>
+                      <option value={TaskCategory.BUG}>Bug</option>
+                    </select>
+                  </div>
+
+                  {/* Assignee */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Assignee</label>
+                    <div className="relative">
+                      <select
+                        value={formData.assigneeId || ''}
+                        onChange={e => setFormData({ ...formData, assigneeId: e.target.value || undefined })}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="">Unassigned</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Priority</label>
+                    <select
+                      disabled={readOnly}
+                      value={formData.priority}
+                      onChange={e => setFormData({ ...formData, priority: e.target.value as any })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+
+                  {/* Due Date */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Due Date</label>
+                    <input
+                      readOnly={readOnly}
+                      type="date"
+                      value={formData.dueDate || ''}
+                      onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtasks Section */}
+                <div className="col-span-2 border-t border-slate-200/60 pt-4 pb-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <button type="button" onClick={() => setShowSubtasks(!showSubtasks)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
+                      {showSubtasks ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
+                      SUBTASKS ({formData.subtasks.length})
+                    </button>
+                  </div>
+
+                  {showSubtasks && (
+                    <div className="space-y-3 animate-in slide-in-from-top-2 duration-200 mb-4">
+                      {!readOnly && (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={newSubtaskTitle}
+                            onChange={e => setNewSubtaskTitle(e.target.value)}
+                            placeholder="New subtask..."
+                            className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSubtask())}
+                          />
+                          <button
+                            type="button"
+                            onClick={addSubtask}
+                            disabled={!newSubtaskTitle.trim()}
+                            className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 disabled:opacity-50"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {formData.subtasks.map(sub => (
+                          <div key={sub.id} className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg hover:border-indigo-300 transition-colors group">
+                            <div className="flex items-center flex-1 min-w-0 mr-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updatedSubtasks = formData.subtasks.map(s => s.id === sub.id ? { ...s, completed: !s.completed, status: !s.completed ? TaskStatus.DONE : TaskStatus.TODO } : s);
+                                  const updatedTask = { ...formData, subtasks: updatedSubtasks };
+                                  setFormData(updatedTask);
+                                }}
+                                className={`mr-2 flex-shrink-0 ${sub.completed ? 'text-green-500' : 'text-slate-300 hover:text-indigo-500'}`}
+                              >
+                                {sub.completed ? <CheckSquare size={16} /> : <Square size={16} />}
+                              </button>
+                              <span className={`text-sm truncate ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{sub.title}</span>
+                            </div>
+
+                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => setLocalEditingSubtask(sub)}
+                                className="p-1 text-slate-400 hover:text-indigo-600"
+                                title={readOnly ? "View Subtask" : "Edit Subtask"}
+                              >
+                                {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
+                              </button>
+                              {!readOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedTask = { ...formData, subtasks: formData.subtasks.filter(s => s.id !== sub.id) };
+                                    setFormData(updatedTask);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-red-500"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
             </div>
           </div>
+
+          {/* FOOTER */}
+          <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
+            <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Task</button>
+          </div>
+
+        </form>
+
+        {/* Local Subtask Editor Modal */}
+        {
+          localEditingSubtask && (
+            <SubtaskEditor
+              task={formData}
+              subtask={localEditingSubtask!}
+              onClose={() => setLocalEditingSubtask(null)}
+              readOnly={readOnly}
+              onUpdate={(updatedSub) => {
+                const updatedTask = {
+                  ...formData,
+                  subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
+                };
+                setFormData(updatedTask);
+                setLocalEditingSubtask(null);
+              }}
+              onInstantUpdate={(updatedSub) => {
+                const updatedTask = {
+                  ...formData,
+                  subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
+                };
+                setFormData(updatedTask);
+                updateTask(updatedTask);
+              }}
+            />
+          )
+        }
+
+        {
+          previewAttachment && (
+            <Modal
+              isOpen={!!previewAttachment}
+              onClose={() => setPreviewAttachment(null)}
+              title={previewAttachment!.name}
+              maxWidth="max-w-4xl"
+              className="h-[80vh]"
+            >
+              <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                {previewAttachment!.type.startsWith('image/') ? (
+                  <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
+                ) : previewAttachment!.type.startsWith('video/') ? (
+                  <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
+                ) : previewAttachment!.type.startsWith('audio/') ? (
+                  <audio src={previewAttachment!.url} controls />
+                ) : (
+                  <iframe
+                    src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
+                    className="w-full h-full border-none"
+                    title="Document Preview"
+                  />
+                )}
+              </div>
+            </Modal>
+          )
+        }
+      </Modal>
+      <Modal
+        isOpen={!!itemToDelete}
+        onClose={() => setItemToDelete(null)}
+        title={`Confirm ${itemToDelete?.type === 'comment' ? 'Comment' : 'Attachment'} Deletion`}
+        maxWidth="max-w-md"
+        className="h-auto"
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-600 mb-4 mx-auto">
+            <AlertTriangle size={24} />
+          </div>
+          <p className="text-center text-slate-600 mb-6">
+            Are you sure you want to delete this {itemToDelete?.type}? This action cannot be undone.
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setItemToDelete(null)}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (itemToDelete) {
+                  if (itemToDelete.type === 'comment') {
+                    deleteComment(itemToDelete.id);
+                  } else {
+                    removeAttachment(itemToDelete.id);
+                  }
+                  setItemToDelete(null);
+                }
+              }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium shadow-md shadow-red-200 transition-colors"
+            >
+              Delete {itemToDelete?.type === 'comment' ? 'Comment' : 'Attachment'}
+            </button>
+          </div>
         </div>
-
-        {/* FOOTER */}
-        <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
-          <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-            Cancel
-          </button>
-          <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Task</button>
-        </div>
-
-      </form>
-
-      {/* Local Subtask Editor Modal */}
-      {
-        localEditingSubtask && (
-          <SubtaskEditor
-            task={formData}
-            subtask={localEditingSubtask!}
-            onClose={() => setLocalEditingSubtask(null)}
-            readOnly={readOnly}
-            onUpdate={(updatedSub) => {
-              const updatedTask = {
-                ...formData,
-                subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
-              };
-              setFormData(updatedTask);
-              setLocalEditingSubtask(null);
-            }}
-            onInstantUpdate={(updatedSub) => {
-              const updatedTask = {
-                ...formData,
-                subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
-              };
-              setFormData(updatedTask);
-              updateTask(updatedTask);
-            }}
-          />
-        )
-      }
-
-      {
-        previewAttachment && (
-          <Modal
-            isOpen={!!previewAttachment}
-            onClose={() => setPreviewAttachment(null)}
-            title={previewAttachment!.name}
-            maxWidth="max-w-4xl"
-            className="h-[80vh]"
-          >
-            <div className="w-full h-full flex items-center justify-center bg-slate-50">
-              {previewAttachment!.type.startsWith('image/') ? (
-                <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
-              ) : previewAttachment!.type.startsWith('video/') ? (
-                <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
-              ) : previewAttachment!.type.startsWith('audio/') ? (
-                <audio src={previewAttachment!.url} controls />
-              ) : (
-                <iframe
-                  src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
-                  className="w-full h-full border-none"
-                  title="Document Preview"
-                />
-              )}
-            </div>
-          </Modal>
-        )
-      }
-    </Modal>
+      </Modal>
+    </>
   );
 };
 
@@ -1205,6 +1243,7 @@ const SubtaskEditor: React.FC<{
   const [showMentions, setShowMentions] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string, type: 'comment' | 'attachment' } | null>(null);
 
   // Title Edit State
   const [isTitleActive, setIsTitleActive] = useState(false);
@@ -1251,9 +1290,7 @@ const SubtaskEditor: React.FC<{
   };
 
   const deleteComment = (commentId: string) => {
-    if (window.confirm("Are you sure you want to delete this comment?")) {
-      handleAutoSave({ ...formData, comments: formData.comments.filter(c => c.id !== commentId) });
-    }
+    handleAutoSave({ ...formData, comments: formData.comments.filter(c => c.id !== commentId) });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1292,9 +1329,7 @@ const SubtaskEditor: React.FC<{
   };
 
   const removeAttachment = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this attachment?")) {
-      handleAutoSave({ ...formData, attachments: formData.attachments.filter(a => a.id !== id) });
-    }
+    handleAutoSave({ ...formData, attachments: formData.attachments.filter(a => a.id !== id) });
   };
 
   const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1329,345 +1364,386 @@ const SubtaskEditor: React.FC<{
   const filteredUsers = users.filter(u => u.name.toLowerCase().startsWith(mentionQuery.toLowerCase()));
 
   return (
-    <Modal isOpen={true} onClose={onClose} title="Edit Subtask" maxWidth="max-w-6xl" className="h-[90vh]" noScroll={true}>
-      <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+    <>
+      <Modal isOpen={true} onClose={onClose} title="Edit Subtask" maxWidth="max-w-6xl" className="h-[90vh]" noScroll={true}>
+        <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
 
-        {/* Universal Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('details')}
-            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('chatter')}
-            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Chatter
-          </button>
-        </div>
+          {/* Universal Tabs */}
+          <div className="flex border-b border-slate-200 bg-slate-50 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('details')}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('chatter')}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Chatter
+            </button>
+          </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-0">
-          <div className="flex flex-col lg:flex-row min-h-full">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-0">
+            <div className="flex flex-col lg:flex-row min-h-full">
 
-            {/* LEFT COLUMN */}
-            <div className="flex-1 p-6 md:p-8 bg-white border-r border-slate-100">
-              <div className={`mb-2 text-sm text-slate-500 flex items-center ${activeTab === 'details' ? 'flex' : 'hidden'}`}>
-                <span className="font-semibold mr-2">Parent Task:</span> {task.title}
-              </div>
-
-              <div className={`mb-6 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Subtask Title
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!readOnly) {
-                        const newState = !isTitleActive;
-                        setIsTitleActive(newState);
-                        if (newState) setTimeout(() => titleInputRef.current?.focus(), 0);
-                      }
-                    }}
-                    disabled={readOnly}
-                    className={`p-1.5 rounded transition-all ${isTitleActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
-                    title={isTitleActive ? "Disable Editing" : "Enable Editing"}
-                  >
-                    {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
-                  </button>
+              {/* LEFT COLUMN */}
+              <div className="flex-1 p-6 md:p-8 bg-white border-r border-slate-100">
+                <div className={`mb-2 text-sm text-slate-500 flex items-center ${activeTab === 'details' ? 'flex' : 'hidden'}`}>
+                  <span className="font-semibold mr-2">Parent Task:</span> {task.title}
                 </div>
-                <input
-                  ref={titleInputRef}
-                  required
-                  readOnly={readOnly || !isTitleActive}
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  className={`w-full text-xl md:text-2xl font-bold rounded-lg px-4 py-3 outline-none transition-all border
-                        ${isTitleActive
-                      ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
-                      : 'bg-slate-50 border-slate-100 text-slate-700 cursor-default'}`}
-                  placeholder="Subtask Title"
-                />
-              </div>
 
-              <div className={`mb-8 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Description
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!readOnly) {
-                        const newState = !isDescriptionActive;
-                        setIsDescriptionActive(newState);
-                        if (newState) setTimeout(() => descriptionInputRef.current?.focus(), 0);
-                      }
-                    }}
-                    disabled={readOnly}
-                    className={`p-1.5 rounded transition-all ${isDescriptionActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
-                    title={isDescriptionActive ? "Disable Editing" : "Enable Editing"}
-                  >
-                    {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
-                  </button>
-                </div>
-                <textarea
-                  ref={descriptionInputRef}
-                  readOnly={readOnly || !isDescriptionActive}
-                  value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  className={`w-full rounded-lg p-4 min-h-[120px] outline-none resize-none transition-all leading-relaxed border
-                        ${isDescriptionActive
-                      ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
-                      : 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'}`}
-                  placeholder={isDescriptionActive ? "Add a detailed description..." : "No description provided."}
-                />
-              </div>
-
-
-
-              {/* Attachments Section */}
-              <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
-                    {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
-                    ATTACHMENTS ({formData.attachments.length})
-                  </button>
-                  <>
+                <div className={`mb-6 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Subtask Title
+                    </label>
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                      title="Upload Attachment"
+                      onClick={() => {
+                        if (!readOnly) {
+                          const newState = !isTitleActive;
+                          setIsTitleActive(newState);
+                          if (newState) setTimeout(() => titleInputRef.current?.focus(), 0);
+                        }
+                      }}
+                      disabled={readOnly}
+                      className={`p-1.5 rounded transition-all ${isTitleActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                      title={isTitleActive ? "Disable Editing" : "Enable Editing"}
                     >
-                      <Paperclip size={14} />
+                      {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
                     </button>
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                  </>
-                </div>
-
-                {showAttachments && (
-                  <div className="space-y-2">
-                    {formData.attachments.map(att => (
-                      <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
-                        <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
-                          <FileText size={12} />
-                        </div>
-                        <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
-                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
-                          <p className="text-[10px] text-slate-400">{att.size}</p>
-                        </button>
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
-                          <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
-                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
                   </div>
-                )}
-              </div>
-
-              {/* Comments Section */}
-              <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
-                <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                  Comments ({formData.comments.length})
-                </label>
-
-                <div className="flex gap-2 mb-4">
-                  <div className="relative flex-1">
-                    <input
-                      ref={commentInputRef}
-                      type="text"
-                      value={newComment}
-                      onChange={handleCommentChange}
-                      placeholder="Write a comment... (use @ to mention)"
-                      className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
-                    />
-                    <button
-                      type="button"
-                      onClick={addComment}
-                      className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
-                    >
-                      <Send size={16} />
-                    </button>
-                    {showMentions && filteredUsers.length > 0 && (
-                      <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                        {filteredUsers.map(u => (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => insertMention(u.name)}
-                            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
-                          >
-                            <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
-                            <span className="text-sm text-slate-700 font-medium">{u.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {[...formData.comments].reverse().map(c => {
-                    const u = users.find(user => user.id === c.userId);
-                    return (
-                      <div key={c.id} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
-                        <img src={u?.avatar} className="w-8 h-8 rounded-full border border-slate-200 bg-white" alt={u?.name} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <span className="text-sm font-semibold text-slate-700">{u?.name}</span>
-                            <span className="text-[10px] text-slate-400">{new Date(c.timestamp).toLocaleString()}</span>
-                          </div>
-                          <p className="text-sm text-slate-600 mt-1 break-words leading-relaxed">
-                            {renderWithMentions(c.text, users)}
-                          </p>
-                        </div>
-                        {(c.userId === currentUser?.id || currentUser?.role === 'ADMIN') && (
-                          <button
-                            type="button"
-                            onClick={() => deleteComment(c.id)}
-                            className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN */}
-            <div className={`w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6 ${activeTab === 'details' ? 'flex' : 'hidden'}`}>
-
-              <div className="grid grid-cols-2 gap-4">
-                {/* Status / Completed */}
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, completed: !formData.completed, status: !formData.completed ? TaskStatus.DONE : TaskStatus.TODO })}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-all ${formData.completed
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300'
-                      }`}
-                  >
-                    <span>{formData.completed ? 'Completed' : 'Incomplete'}</span>
-                    {formData.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-                  </button>
-                </div>
-
-                {/* Category (Subtask category typically matches parent but can differ) */}
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Category</label>
-                  <select
-                    disabled={readOnly}
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value as TaskCategory })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value={TaskCategory.TASK}>Task</option>
-                    <option value={TaskCategory.STORY}>Story</option>
-                    <option value={TaskCategory.ISSUE}>Issue</option>
-                    <option value={TaskCategory.BUG}>Bug</option>
-                  </select>
-                </div>
-
-                {/* Assignee */}
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Assignee</label>
-                  <div className="relative">
-                    <select
-                      value={formData.assigneeId || ''}
-                      onChange={e => setFormData({ ...formData, assigneeId: e.target.value || undefined })}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Priority */}
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Priority</label>
-                  <select
-                    disabled={readOnly}
-                    value={formData.priority}
-                    onChange={e => setFormData({ ...formData, priority: e.target.value as any })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-
-                {/* Due Date (If exists on Subtask, adding it just in case as type definition has it) */}
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Due Date</label>
                   <input
-                    readOnly={readOnly}
-                    type="date"
-                    value={formData.dueDate || ''}
-                    onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    ref={titleInputRef}
+                    required
+                    readOnly={readOnly || !isTitleActive}
+                    type="text"
+                    value={formData.title}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    className={`w-full text-xl md:text-2xl font-bold rounded-lg px-4 py-3 outline-none transition-all border
+                        ${isTitleActive
+                        ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
+                        : 'bg-slate-50 border-slate-100 text-slate-700 cursor-default'}`}
+                    placeholder="Subtask Title"
                   />
                 </div>
+
+                <div className={`mb-8 ${activeTab === 'details' ? 'block' : 'hidden'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Description
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!readOnly) {
+                          const newState = !isDescriptionActive;
+                          setIsDescriptionActive(newState);
+                          if (newState) setTimeout(() => descriptionInputRef.current?.focus(), 0);
+                        }
+                      }}
+                      disabled={readOnly}
+                      className={`p-1.5 rounded transition-all ${isDescriptionActive ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                      title={isDescriptionActive ? "Disable Editing" : "Enable Editing"}
+                    >
+                      {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
+                    </button>
+                  </div>
+                  <textarea
+                    ref={descriptionInputRef}
+                    readOnly={readOnly || !isDescriptionActive}
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    className={`w-full rounded-lg p-4 min-h-[120px] outline-none resize-none transition-all leading-relaxed border
+                        ${isDescriptionActive
+                        ? 'bg-white border-indigo-200 text-slate-800 shadow-sm ring-2 ring-indigo-50/50'
+                        : 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'}`}
+                    placeholder={isDescriptionActive ? "Add a detailed description..." : "No description provided."}
+                  />
+                </div>
+
+
+
+                {/* Attachments Section */}
+                <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
+                      {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
+                      ATTACHMENTS ({formData.attachments.length})
+                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Upload Attachment"
+                      >
+                        <Paperclip size={14} />
+                      </button>
+                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    </>
+                  </div>
+
+                  {showAttachments && (
+                    <div className="space-y-2">
+                      {formData.attachments.map(att => (
+                        <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
+                          <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
+                            <FileText size={12} />
+                          </div>
+                          <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
+                            <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
+                            <p className="text-[10px] text-slate-400">{att.size}</p>
+                          </button>
+                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
+                            <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
+                            {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                              <button type="button" onClick={() => setItemToDelete({ id: att.id, type: 'attachment' })} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Comments Section */}
+                <div className={`mb-8 ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
+                  <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                    Comments ({formData.comments.length})
+                  </label>
+
+                  <div className="flex gap-2 mb-4">
+                    <div className="relative flex-1">
+                      <input
+                        ref={commentInputRef}
+                        type="text"
+                        value={newComment}
+                        onChange={handleCommentChange}
+                        placeholder="Write a comment... (use @ to mention)"
+                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
+                      />
+                      <button
+                        type="button"
+                        onClick={addComment}
+                        className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
+                      >
+                        <Send size={16} />
+                      </button>
+                      {showMentions && filteredUsers.length > 0 && (
+                        <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                          {filteredUsers.map(u => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => insertMention(u.name)}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
+                            >
+                              <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
+                              <span className="text-sm text-slate-700 font-medium">{u.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {[...formData.comments].reverse().map(c => {
+                      const u = users.find(user => user.id === c.userId);
+                      return (
+                        <div key={c.id} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
+                          <img src={u?.avatar} className="w-8 h-8 rounded-full border border-slate-200 bg-white" alt={u?.name} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <span className="text-sm font-semibold text-slate-700">{u?.name}</span>
+                              <span className="text-[10px] text-slate-400">{new Date(c.timestamp).toLocaleString()}</span>
+                            </div>
+                            <p className="text-sm text-slate-600 mt-1 break-words leading-relaxed">
+                              {renderWithMentions(c.text, users)}
+                            </p>
+                          </div>
+                          {(c.userId === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                            <button
+                              type="button"
+                              onClick={() => setItemToDelete({ id: c.id, type: 'comment' })}
+                              className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
+              {/* RIGHT COLUMN */}
+              <div className={`w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6 ${activeTab === 'details' ? 'flex' : 'hidden'}`}>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Status / Completed */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, completed: !formData.completed, status: !formData.completed ? TaskStatus.DONE : TaskStatus.TODO })}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-all ${formData.completed
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300'
+                        }`}
+                    >
+                      <span>{formData.completed ? 'Completed' : 'Incomplete'}</span>
+                      {formData.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Category (Subtask category typically matches parent but can differ) */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Category</label>
+                    <select
+                      disabled={readOnly}
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value as TaskCategory })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value={TaskCategory.TASK}>Task</option>
+                      <option value={TaskCategory.STORY}>Story</option>
+                      <option value={TaskCategory.ISSUE}>Issue</option>
+                      <option value={TaskCategory.BUG}>Bug</option>
+                    </select>
+                  </div>
+
+                  {/* Assignee */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Assignee</label>
+                    <div className="relative">
+                      <select
+                        value={formData.assigneeId || ''}
+                        onChange={e => setFormData({ ...formData, assigneeId: e.target.value || undefined })}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="">Unassigned</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Priority</label>
+                    <select
+                      disabled={readOnly}
+                      value={formData.priority}
+                      onChange={e => setFormData({ ...formData, priority: e.target.value as any })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+
+                  {/* Due Date (If exists on Subtask, adding it just in case as type definition has it) */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Due Date</label>
+                    <input
+                      readOnly={readOnly}
+                      type="date"
+                      value={formData.dueDate || ''}
+                      onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* FOOTER */}
-        <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
-          <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-            Cancel
-          </button>
-          <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
-        </div>
-      </form>
-
-      {previewAttachment && (
-        <Modal
-          isOpen={!!previewAttachment}
-          onClose={() => setPreviewAttachment(null)}
-          title={previewAttachment!.name}
-          maxWidth="max-w-4xl"
-          className="h-[80vh]"
-        >
-          <div className="w-full h-full flex items-center justify-center bg-slate-50">
-            {previewAttachment!.type.startsWith('image/') ? (
-              <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
-            ) : previewAttachment!.type.startsWith('video/') ? (
-              <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
-            ) : previewAttachment!.type.startsWith('audio/') ? (
-              <audio src={previewAttachment!.url} controls />
-            ) : (
-              <iframe
-                src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
-                className="w-full h-full border-none"
-                title="Document Preview"
-              />
-            )}
+          {/* FOOTER */}
+          <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
+            <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
           </div>
-        </Modal>
-      )}
-    </Modal>
+        </form>
+
+        {previewAttachment && (
+          <Modal
+            isOpen={!!previewAttachment}
+            onClose={() => setPreviewAttachment(null)}
+            title={previewAttachment!.name}
+            maxWidth="max-w-4xl"
+            className="h-[80vh]"
+          >
+            <div className="w-full h-full flex items-center justify-center bg-slate-50">
+              {previewAttachment!.type.startsWith('image/') ? (
+                <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
+              ) : previewAttachment!.type.startsWith('video/') ? (
+                <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
+              ) : previewAttachment!.type.startsWith('audio/') ? (
+                <audio src={previewAttachment!.url} controls />
+              ) : (
+                <iframe
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
+                  className="w-full h-full border-none"
+                  title="Document Preview"
+                />
+              )}
+            </div>
+          </Modal>
+        )}
+      </Modal>
+      <Modal
+        isOpen={!!itemToDelete}
+        onClose={() => setItemToDelete(null)}
+        title={`Confirm ${itemToDelete?.type === 'comment' ? 'Comment' : 'Attachment'} Deletion`}
+        maxWidth="max-w-md"
+        className="h-auto"
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-600 mb-4 mx-auto">
+            <AlertTriangle size={24} />
+          </div>
+          <p className="text-center text-slate-600 mb-6">
+            Are you sure you want to delete this {itemToDelete?.type}? This action cannot be undone.
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setItemToDelete(null)}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (itemToDelete) {
+                  if (itemToDelete.type === 'comment') {
+                    deleteComment(itemToDelete.id);
+                  } else {
+                    removeAttachment(itemToDelete.id);
+                  }
+                  setItemToDelete(null);
+                }
+              }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium shadow-md shadow-red-200 transition-colors"
+            >
+              Delete {itemToDelete?.type === 'comment' ? 'Comment' : 'Attachment'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };
 
