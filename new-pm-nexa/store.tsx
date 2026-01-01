@@ -1122,15 +1122,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (sender && sender.track !== active) {
             try { await sender.replaceTrack(active); } catch (e) { console.error('replaceTrack audio on unmute failed', e); }
           } else if (!sender) {
-            try { pc.addTrack(active, audioStream); } catch (e) { console.error('addTrack audio on unmute failed', e); }
+            // Only if we don't have a sender do we need to add track + negotiate
+            try {
+              pc.addTrack(active, audioStream);
+              // In this rare case (sender missing), we MIGHT need renegotiation, 
+              // but usually this path isn't hit for simple mute toggles.
+            } catch (e) { console.error('addTrack audio on unmute failed', e); }
           }
         }
       }
     }
 
-    // Update preview stream
-    composeLocalStream();
-    await renegotiate();
+    // NO composeLocalStream() or renegotiate() here.
+    // Changing 'enabled' does not require stream recreation or signaling.
+    // This prevents the local video element from reloading (flickering).
   };
 
   const toggleCamera = async () => {
