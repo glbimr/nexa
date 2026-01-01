@@ -1366,7 +1366,7 @@ const SubtaskEditor: React.FC<{
               </div>
 
               {/* Comments Section */}
-              <div className="mb-8">
+              <div className={`mb-8 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
                 <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                   Comments ({formData.comments.length})
                 </label>
@@ -1524,7 +1524,7 @@ const SubtaskEditor: React.FC<{
               </div>
 
               {/* Attachments Section */}
-              <div className="border-t border-slate-200/60 pt-4">
+              <div className={`border-t border-slate-200/60 pt-4 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
                 <div className="flex items-center justify-between mb-3">
                   <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
