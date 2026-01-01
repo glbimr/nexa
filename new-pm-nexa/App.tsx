@@ -51,7 +51,11 @@ const PREDEFINED_AVATARS = [
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Bandit',
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Misty',
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Shadow',
-  'https://api.dicebear.com/9.x/avataaars/svg?seed=Leo'
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Leo',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Xavier',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Zoe',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Pepper',
+  'https://api.dicebear.com/9.x/avataaars/svg?seed=Jasper'
 ];
 
 
@@ -551,7 +555,7 @@ const MainLayout: React.FC = () => {
             <div>
               <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center">
                 <span className="flex-1">Profile Styles</span>
-                <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full normal-case text-[9px]">Gallery</span>
+                <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full normal-case text-[9px]">12 Styles</span>
               </h4>
 
               <div className="grid grid-cols-4 gap-3">
