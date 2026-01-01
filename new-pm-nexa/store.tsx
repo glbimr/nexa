@@ -632,6 +632,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: t.createdAt,
       order: maxOrder + 1
     });
+
+    if (t.assigneeId) {
+      triggerNotification(
+        t.assigneeId,
+        NotificationType.ASSIGNMENT,
+        "New Task Assigned",
+        `You have been assigned to task "${t.title}"`,
+        t.id
+      );
+    }
+
+    t.subtasks.forEach(sub => {
+      if (sub.assigneeId) {
+        triggerNotification(
+          sub.assigneeId,
+          NotificationType.ASSIGNMENT,
+          "New Subtask Assigned",
+          `You have been assigned to subtask "${sub.title}" in task "${t.title}"`,
+          t.id
+        );
+      }
+    });
   };
 
   const updateTask = async (t: Task) => {
@@ -651,6 +673,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subtasks: t.subtasks,
       order: t.order
     }).eq('id', t.id);
+
+    // --- Notification Logic ---
+    const oldTask = tasks.find(task => task.id === t.id);
+    if (!oldTask) return;
+
+    // 1. Task Assignment Change
+    if (t.assigneeId && t.assigneeId !== oldTask.assigneeId) {
+      triggerNotification(
+        t.assigneeId,
+        NotificationType.ASSIGNMENT,
+        "New Task Assigned",
+        `You have been assigned to task "${t.title}"`,
+        t.id
+      );
+    }
+
+    // 2. Task Details Update (Status, Priority, etc.) - Only notify if assignee exists and didn't just change (avoid double notify)
+    if (t.assigneeId && t.assigneeId === oldTask.assigneeId) {
+      const isChanged = t.status !== oldTask.status ||
+        t.title !== oldTask.title ||
+        t.priority !== oldTask.priority ||
+        t.dueDate !== oldTask.dueDate ||
+        t.description !== oldTask.description;
+
+      if (isChanged) {
+        triggerNotification(
+          t.assigneeId,
+          NotificationType.ASSIGNMENT,
+          "Task Updated",
+          `Task "${t.title}" has been updated`,
+          t.id
+        );
+      }
+    }
+
+    // 3. Subtask Notifications
+    t.subtasks.forEach(sub => {
+      const oldSub = oldTask.subtasks.find(os => os.id === sub.id);
+
+      if (!oldSub) {
+        // New Subtask
+        if (sub.assigneeId) {
+          triggerNotification(
+            sub.assigneeId,
+            NotificationType.ASSIGNMENT,
+            "New Subtask Assigned",
+            `You have been assigned to subtask "${sub.title}" in task "${t.title}"`,
+            t.id
+          );
+        }
+      } else {
+        // Existing Subtask Updates
+        if (sub.assigneeId && sub.assigneeId !== oldSub.assigneeId) {
+          triggerNotification(
+            sub.assigneeId,
+            NotificationType.ASSIGNMENT,
+            "New Subtask Assigned",
+            `You have been assigned to subtask "${sub.title}" in task "${t.title}"`,
+            t.id
+          );
+        } else if (sub.assigneeId && sub.assigneeId === oldSub.assigneeId) {
+          const isSubChanged = sub.completed !== oldSub.completed ||
+            sub.title !== oldSub.title ||
+            sub.status !== oldSub.status ||
+            sub.priority !== oldSub.priority;
+
+          if (isSubChanged) {
+            triggerNotification(
+              sub.assigneeId,
+              NotificationType.ASSIGNMENT,
+              "Subtask Updated",
+              `Subtask "${sub.title}" in task "${t.title}" has been updated`,
+              t.id
+            );
+          }
+        }
+      }
+    });
+
   };
 
   const deleteTask = async (id: string) => {
