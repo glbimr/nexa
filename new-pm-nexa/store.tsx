@@ -923,38 +923,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Optimistically mark messages as read in local state
     setMessages(prev => prev.map(m => {
-      // Only mark unread messages for this chat
-      const isTarget = (chatId === 'general' && !m.recipientId) ||
-        (chatId.startsWith('g-') && m.recipientId === chatId) ||
-        (m.senderId === chatId && m.recipientId === currentUser.id); // For DMs, sender is the chat ID
+      const isGeneral = chatId === 'general' && !m.recipientId;
+      const isGroup = chatId.startsWith('g-') && m.recipientId === chatId;
+      const isDM = m.senderId === chatId && m.recipientId === currentUser.id;
 
-      if (isTarget && !m.isRead && m.senderId !== currentUser.id) {
+      if ((isGeneral || isGroup || isDM) && !m.isRead && m.senderId !== currentUser.id) {
         return { ...m, isRead: true };
       }
       return m;
     }));
 
-    // Direct update to public.messages to ensure is_read is persisted
+    // Update DB directly
     try {
+      let query = supabase.from('messages').update({ is_read: true }).neq('sender_id', currentUser.id);
+
       if (chatId === 'general') {
-        await supabase.from('messages').update({ is_read: true })
-          .is('recipient_id', null)
-          .neq('sender_id', currentUser.id)
-          .eq('is_read', false);
+        // General Chat: recipient_id is null
+        query = query.is('recipient_id', null);
       } else if (chatId.startsWith('g-')) {
-        await supabase.from('messages').update({ is_read: true })
-          .eq('recipient_id', chatId)
-          .neq('sender_id', currentUser.id)
-          .eq('is_read', false);
+        // Group Chat: recipient_id is the group ID
+        query = query.eq('recipient_id', chatId);
       } else {
-        // DM: messages where sender is the chat partner and recipient is me
-        await supabase.from('messages').update({ is_read: true })
-          .eq('sender_id', chatId)
-          .eq('recipient_id', currentUser.id)
-          .eq('is_read', false);
+        // Direct Message: sender_id is the chat partner (chatId) AND recipient_id is currentUser
+        // Note: We already have .neq('sender_id', currentUser.id), but strictly for DM we want specifically messages FROM the other user TO us.
+        query = query.eq('sender_id', chatId).eq('recipient_id', currentUser.id);
       }
-    } catch (error) {
-      console.error('Error marking messages as read:', error);
+
+      // Check for unread only to avoid redundant updates? 
+      // PostgreSQL update is cheap enough for this, but could add .eq('is_read', false)
+      query = query.eq('is_read', false);
+
+      const { error } = await query;
+      if (error) console.error("Error marking messages read:", error);
+
+    } catch (e) {
+      console.error("Exception marking messages read:", e);
     }
   };
 
