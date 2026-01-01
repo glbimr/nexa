@@ -647,9 +647,11 @@ const TaskEditor: React.FC<{
   };
 
   const deleteComment = (commentId: string) => {
-    const updatedTask = { ...formData, comments: formData.comments.filter(c => c.id !== commentId) };
-    setFormData(updatedTask);
-    updateTask(updatedTask); // Auto-save
+    if (window.confirm("Are you sure you want to delete this comment?")) {
+      const updatedTask = { ...formData, comments: formData.comments.filter(c => c.id !== commentId) };
+      setFormData(updatedTask);
+      updateTask(updatedTask); // Auto-save
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -688,9 +690,11 @@ const TaskEditor: React.FC<{
   };
 
   const removeAttachment = (id: string) => {
-    const updatedTask = { ...formData, attachments: formData.attachments.filter(a => a.id !== id) };
-    setFormData(updatedTask);
-    updateTask(updatedTask); // Auto-save
+    if (window.confirm("Are you sure you want to delete this attachment?")) {
+      const updatedTask = { ...formData, attachments: formData.attachments.filter(a => a.id !== id) };
+      setFormData(updatedTask);
+      updateTask(updatedTask); // Auto-save
+    }
   };
 
   // Mention Handlers
@@ -1085,7 +1089,6 @@ const TaskEditor: React.FC<{
                               type="button"
                               onClick={() => setLocalEditingSubtask(sub)}
                               className="p-1 text-slate-400 hover:text-indigo-600"
-                              disabled={readOnly}
                             >
                               <Settings size={14} />
                             </button>
@@ -1290,7 +1293,9 @@ const SubtaskEditor: React.FC<{
   };
 
   const deleteComment = (commentId: string) => {
-    handleAutoSave({ ...formData, comments: formData.comments.filter(c => c.id !== commentId) });
+    if (window.confirm("Are you sure you want to delete this comment?")) {
+      handleAutoSave({ ...formData, comments: formData.comments.filter(c => c.id !== commentId) });
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1329,7 +1334,9 @@ const SubtaskEditor: React.FC<{
   };
 
   const removeAttachment = (id: string) => {
-    handleAutoSave({ ...formData, attachments: formData.attachments.filter(a => a.id !== id) });
+    if (window.confirm("Are you sure you want to delete this attachment?")) {
+      handleAutoSave({ ...formData, attachments: formData.attachments.filter(a => a.id !== id) });
+    }
   };
 
   const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
