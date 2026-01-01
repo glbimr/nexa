@@ -1603,6 +1603,7 @@ export const KanbanBoard: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<TaskCategory | 'all'>('all');
   const [filterProject, setFilterProject] = useState<string | 'all'>('all');
   const [filterAssignee, setFilterAssignee] = useState<string | 'all'>('all');
+  const [mobileStatus, setMobileStatus] = useState<TaskStatus>(TaskStatus.TODO);
 
   // Modal State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -1748,10 +1749,26 @@ export const KanbanBoard: React.FC = () => {
       </div>
 
       {/* Content Area */}
+      {/* Mobile Status Tabs */}
+      <div className="flex md:hidden space-x-1 mb-4 bg-slate-100 p-1 rounded-lg shrink-0">
+        {[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE].map(status => (
+          <button
+            key={status}
+            onClick={() => setMobileStatus(status)}
+            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all uppercase ${mobileStatus === status
+              ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
+              : 'text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            {status === TaskStatus.TODO ? 'To Do' : status === TaskStatus.IN_PROGRESS ? 'In Progress' : 'Done'}
+          </button>
+        ))}
+      </div>
+
       {viewMode === 'board' ? (
         <div className="flex-1 overflow-y-auto md:overflow-x-auto md:overflow-y-hidden custom-scrollbar">
           <div className="flex flex-col md:flex-row md:h-full gap-6">
-            <div className="flex-1 min-w-[300px] md:h-full">
+            <div className={`flex-1 min-w-[300px] md:h-full ${mobileStatus === TaskStatus.TODO ? 'block' : 'hidden md:block'}`}>
               <KanbanColumn
                 status={TaskStatus.TODO}
                 title="To Do"
@@ -1766,7 +1783,7 @@ export const KanbanBoard: React.FC = () => {
                 onUpdateTask={updateTask}
               />
             </div>
-            <div className="flex-1 min-w-[300px] md:h-full">
+            <div className={`flex-1 min-w-[300px] md:h-full ${mobileStatus === TaskStatus.IN_PROGRESS ? 'block' : 'hidden md:block'}`}>
               <KanbanColumn
                 status={TaskStatus.IN_PROGRESS}
                 title="In Progress"
@@ -1781,7 +1798,7 @@ export const KanbanBoard: React.FC = () => {
                 onUpdateTask={updateTask}
               />
             </div>
-            <div className="flex-1 min-w-[300px] md:h-full">
+            <div className={`flex-1 min-w-[300px] md:h-full ${mobileStatus === TaskStatus.DONE ? 'block' : 'hidden md:block'}`}>
               <KanbanColumn
                 status={TaskStatus.DONE}
                 title="Done"
