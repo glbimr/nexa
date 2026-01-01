@@ -94,7 +94,9 @@ const TaskCardItem: React.FC<{
 
   const { currentUser } = useApp();
   const hasProjectWrite = currentUser?.role === 'ADMIN' || (currentUser?.projectAccess?.[task.projectId] === 'write');
-  const isEditable = canEdit && hasProjectWrite;
+  // Allow editing for admins or anyone with write OR read access (as per requirements to change state/assignee/comments)
+  const hasAccess = currentUser?.role === 'ADMIN' || (currentUser?.projectAccess?.[task.projectId] !== undefined && currentUser?.projectAccess?.[task.projectId] !== 'none');
+  const isEditable = canEdit && hasAccess;
 
   const toggleSubtaskCompletion = (subtaskId: string) => {
     if (!isEditable) return;
@@ -638,12 +640,16 @@ const TaskEditor: React.FC<{
       text: newComment,
       timestamp: Date.now()
     };
-    setFormData(prev => ({ ...prev, comments: [...prev.comments, comment] }));
+    const updatedTask = { ...formData, comments: [...formData.comments, comment] };
+    setFormData(updatedTask);
+    updateTask(updatedTask); // Auto-save
     setNewComment('');
   };
 
   const deleteComment = (commentId: string) => {
-    setFormData(prev => ({ ...prev, comments: prev.comments.filter(c => c.id !== commentId) }));
+    const updatedTask = { ...formData, comments: formData.comments.filter(c => c.id !== commentId) };
+    setFormData(updatedTask);
+    updateTask(updatedTask); // Auto-save
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -681,7 +687,9 @@ const TaskEditor: React.FC<{
   };
 
   const removeAttachment = (id: string) => {
-    setFormData(prev => ({ ...prev, attachments: prev.attachments.filter(a => a.id !== id) }));
+    const updatedTask = { ...formData, attachments: formData.attachments.filter(a => a.id !== id) };
+    setFormData(updatedTask);
+    updateTask(updatedTask); // Auto-save
   };
 
   // Mention Handlers
@@ -852,7 +860,7 @@ const TaskEditor: React.FC<{
                         </button>
                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {!readOnly && <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>}
+                          <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
                         </div>
                       </div>
                     ))}
@@ -867,45 +875,43 @@ const TaskEditor: React.FC<{
                   Comments ({formData.comments.length})
                 </label>
 
-                {/* Comment Input */}
-                {!readOnly && (
-                  <div className="flex gap-2 mb-4">
-                    <div className="relative flex-1">
-                      <input
-                        ref={commentInputRef}
-                        type="text"
-                        value={newComment}
-                        onChange={handleCommentChange}
-                        placeholder="Write a comment... (use @ to mention)"
-                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
-                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
-                      />
-                      <button
-                        type="button"
-                        onClick={addComment}
-                        className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
-                      >
-                        <Send size={16} />
-                      </button>
-                      {/* Mentions Dropdown */}
-                      {showMentions && filteredUsers.length > 0 && (
-                        <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                          {filteredUsers.map(u => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => insertMention(u.name)}
-                              className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
-                            >
-                              <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
-                              <span className="text-sm text-slate-700 font-medium">{u.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                {/* Comment Input - Enabled for everyone */}
+                <div className="flex gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <input
+                      ref={commentInputRef}
+                      type="text"
+                      value={newComment}
+                      onChange={handleCommentChange}
+                      placeholder="Write a comment... (use @ to mention)"
+                      className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
+                    />
+                    <button
+                      type="button"
+                      onClick={addComment}
+                      className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
+                    >
+                      <Send size={16} />
+                    </button>
+                    {/* Mentions Dropdown */}
+                    {showMentions && filteredUsers.length > 0 && (
+                      <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                        {filteredUsers.map(u => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => insertMention(u.name)}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
+                          >
+                            <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
+                            <span className="text-sm text-slate-700 font-medium">{u.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {/* Comments List */}
                 <div className="space-y-3">
@@ -923,7 +929,7 @@ const TaskEditor: React.FC<{
                             {renderWithMentions(c.text, users)}
                           </p>
                         </div>
-                        {!readOnly && (c.userId === currentUser?.id) && (
+                        {(c.userId === currentUser?.id) && (
                           <button
                             type="button"
                             onClick={() => deleteComment(c.id)}
@@ -947,7 +953,6 @@ const TaskEditor: React.FC<{
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
                   <select
-                    disabled={readOnly}
                     value={formData.status}
                     onChange={e => {
                       const newStatus = e.target.value as TaskStatus;
@@ -982,7 +987,6 @@ const TaskEditor: React.FC<{
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Assignee</label>
                   <div className="relative">
                     <select
-                      disabled={readOnly}
                       value={formData.assigneeId || ''}
                       onChange={e => setFormData({ ...formData, assigneeId: e.target.value || undefined })}
                       className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
@@ -1110,19 +1114,18 @@ const TaskEditor: React.FC<{
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
                     ATTACHMENTS ({formData.attachments.length})
                   </button>
-                  {!readOnly && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="Upload Attachment"
-                      >
-                        <Paperclip size={14} />
-                      </button>
-                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    </>
-                  )}
+                  {/* Enabled for everyone */}
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                      title="Upload Attachment"
+                    >
+                      <Paperclip size={14} />
+                    </button>
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                  </>
                 </div>
 
                 {showAttachments && (
@@ -1138,7 +1141,7 @@ const TaskEditor: React.FC<{
                         </button>
                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {!readOnly && <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>}
+                          <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
                         </div>
                       </div>
                     ))}
@@ -1176,6 +1179,14 @@ const TaskEditor: React.FC<{
             };
             setFormData(updatedTask);
             setLocalEditingSubtask(null);
+          }}
+          onInstantUpdate={(updatedSub) => {
+            const updatedTask = {
+              ...formData,
+              subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
+            };
+            setFormData(updatedTask);
+            updateTask(updatedTask);
           }}
         />
       )}
@@ -1218,7 +1229,8 @@ const SubtaskEditor: React.FC<{
   onClose: () => void;
   readOnly: boolean;
   onUpdate?: (subtask: SubTask) => void;
-}> = ({ task, subtask, onClose, readOnly, onUpdate }) => {
+  onInstantUpdate?: (subtask: SubTask) => void;
+}> = ({ task, subtask, onClose, readOnly, onUpdate, onInstantUpdate }) => {
   const { updateTask, users, currentUser } = useApp();
   const [formData, setFormData] = useState<SubTask>(subtask);
   const [newComment, setNewComment] = useState('');
@@ -1253,6 +1265,16 @@ const SubtaskEditor: React.FC<{
     onClose();
   };
 
+  const handleAutoSave = (updatedSub: SubTask) => {
+    setFormData(updatedSub);
+    if (onInstantUpdate) {
+      onInstantUpdate(updatedSub);
+    } else {
+      const updatedSubtasks = task.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s);
+      updateTask({ ...task, subtasks: updatedSubtasks });
+    }
+  };
+
   const addComment = () => {
     if (!newComment.trim() || !currentUser) return;
     const comment: Comment = {
@@ -1261,12 +1283,12 @@ const SubtaskEditor: React.FC<{
       text: newComment,
       timestamp: Date.now()
     };
-    setFormData(prev => ({ ...prev, comments: [...prev.comments, comment] }));
+    handleAutoSave({ ...formData, comments: [...formData.comments, comment] });
     setNewComment('');
   };
 
   const deleteComment = (commentId: string) => {
-    setFormData(prev => ({ ...prev, comments: prev.comments.filter(c => c.id !== commentId) }));
+    handleAutoSave({ ...formData, comments: formData.comments.filter(c => c.id !== commentId) });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1298,13 +1320,13 @@ const SubtaskEditor: React.FC<{
         }
       }
 
-      setFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...newAttachments] }));
+      handleAutoSave({ ...formData, attachments: [...formData.attachments, ...newAttachments] });
       e.target.value = ''; // Reset
     }
   };
 
   const removeAttachment = (id: string) => {
-    setFormData(prev => ({ ...prev, attachments: prev.attachments.filter(a => a.id !== id) }));
+    handleAutoSave({ ...formData, attachments: formData.attachments.filter(a => a.id !== id) });
   };
 
   const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1448,19 +1470,17 @@ const SubtaskEditor: React.FC<{
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
                     ATTACHMENTS ({formData.attachments.length})
                   </button>
-                  {!readOnly && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="Upload Attachment"
-                      >
-                        <Paperclip size={14} />
-                      </button>
-                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    </>
-                  )}
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                      title="Upload Attachment"
+                    >
+                      <Paperclip size={14} />
+                    </button>
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                  </>
                 </div>
 
                 {showAttachments && (
@@ -1491,43 +1511,41 @@ const SubtaskEditor: React.FC<{
                   Comments ({formData.comments.length})
                 </label>
 
-                {!readOnly && (
-                  <div className="flex gap-2 mb-4">
-                    <div className="relative flex-1">
-                      <input
-                        ref={commentInputRef}
-                        type="text"
-                        value={newComment}
-                        onChange={handleCommentChange}
-                        placeholder="Write a comment... (use @ to mention)"
-                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
-                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
-                      />
-                      <button
-                        type="button"
-                        onClick={addComment}
-                        className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
-                      >
-                        <Send size={16} />
-                      </button>
-                      {showMentions && filteredUsers.length > 0 && (
-                        <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                          {filteredUsers.map(u => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => insertMention(u.name)}
-                              className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
-                            >
-                              <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
-                              <span className="text-sm text-slate-700 font-medium">{u.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                <div className="flex gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <input
+                      ref={commentInputRef}
+                      type="text"
+                      value={newComment}
+                      onChange={handleCommentChange}
+                      placeholder="Write a comment... (use @ to mention)"
+                      className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm transition-all"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addComment())}
+                    />
+                    <button
+                      type="button"
+                      onClick={addComment}
+                      className="absolute right-2 top-2 text-indigo-500 hover:text-indigo-700 p-1 rounded-md transition-colors"
+                    >
+                      <Send size={16} />
+                    </button>
+                    {showMentions && filteredUsers.length > 0 && (
+                      <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                        {filteredUsers.map(u => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => insertMention(u.name)}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 border-b border-slate-50 last:border-0"
+                          >
+                            <img src={u.avatar} className="w-6 h-6 rounded-full" alt={u.name} />
+                            <span className="text-sm text-slate-700 font-medium">{u.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 <div className="space-y-3">
                   {[...formData.comments].reverse().map(c => {
@@ -1544,7 +1562,7 @@ const SubtaskEditor: React.FC<{
                             {renderWithMentions(c.text, users)}
                           </p>
                         </div>
-                        {!readOnly && (c.userId === currentUser?.id) && (
+                        {(c.userId === currentUser?.id) && (
                           <button
                             type="button"
                             onClick={() => deleteComment(c.id)}
@@ -1569,7 +1587,6 @@ const SubtaskEditor: React.FC<{
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
                   <button
                     type="button"
-                    disabled={readOnly}
                     onClick={() => setFormData({ ...formData, completed: !formData.completed, status: !formData.completed ? TaskStatus.DONE : TaskStatus.TODO })}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-all ${formData.completed
                       ? 'bg-green-50 border-green-200 text-green-700'
@@ -1602,7 +1619,6 @@ const SubtaskEditor: React.FC<{
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Assignee</label>
                   <div className="relative">
                     <select
-                      disabled={readOnly}
                       value={formData.assigneeId || ''}
                       onChange={e => setFormData({ ...formData, assigneeId: e.target.value || undefined })}
                       className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-3 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
@@ -1650,19 +1666,17 @@ const SubtaskEditor: React.FC<{
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
                     ATTACHMENTS ({formData.attachments.length})
                   </button>
-                  {!readOnly && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="Upload Attachment"
-                      >
-                        <Paperclip size={14} />
-                      </button>
-                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    </>
-                  )}
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                      title="Upload Attachment"
+                    >
+                      <Paperclip size={14} />
+                    </button>
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                  </>
                 </div>
 
                 {showAttachments && (
