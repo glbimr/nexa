@@ -119,7 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // User Preferences
   const [ringtone, setRingtoneState] = useState<string>(() => {
-    return localStorage.getItem('nexus_pm_ringtone') || 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3';
+    return localStorage.getItem('nexus_pm_ringtone') || 'https://orangefreesounds.com/wp-content/uploads/2023/04/Office-phone-ringing-sound-effect.mp3';
   });
 
   const setRingtone = (url: string) => {

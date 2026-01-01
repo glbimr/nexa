@@ -52,9 +52,10 @@ const PREDEFINED_AVATARS = [
 
 
 const AVAILABLE_RINGTONES = [
+  { name: 'Office Digital', url: 'https://orangefreesounds.com/wp-content/uploads/2023/04/Office-phone-ringing-sound-effect.mp3' },
+  { name: 'Cosmic Flow', url: 'https://www.orangefreesounds.com/wp-content/uploads/2020/02/Cosmic-ringtone.mp3' },
+  { name: 'Piano Melody', url: 'https://www.orangefreesounds.com/wp-content/uploads/2021/01/Piano-ringtone.mp3' },
   { name: 'Marimba Groove', url: 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3' },
-  { name: 'Classic Phone', url: 'https://assets.mixkit.co/active_storage/sfx/2368/2368-preview.mp3' },
-  { name: 'Soft Chime', url: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' } // Assuming valid, fallback to others if silence
 ];
 const IncomingCallOverlay: React.FC = () => {
   const { incomingCall, users, acceptIncomingCall, rejectIncomingCall, ringtone } = useApp();
