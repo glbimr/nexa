@@ -1766,6 +1766,12 @@ export const KanbanBoard: React.FC = () => {
   };
 
   const filteredTasks = tasks.filter(t => {
+    // Permission Check
+    if (currentUser?.role !== 'ADMIN') {
+      const accessLevel = currentUser?.projectAccess?.[t.projectId] || 'none';
+      if (accessLevel === 'none') return false;
+    }
+
     const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || t.category === filterCategory;
