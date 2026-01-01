@@ -386,7 +386,7 @@ const KanbanColumn: React.FC<ColumnProps> = ({
           {tasks.length}
         </span>
       </div>
-      <div className="space-y-4 flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar">
+      <div className="space-y-4 flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar md:[&::-webkit-scrollbar]:hidden md:[scrollbar-width:none]">
         {sortedTasks.map(task => (
           <TaskCardItem
             key={task.id}
@@ -1667,7 +1667,7 @@ export const KanbanBoard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 pb-24 md:pb-6">
+    <div className="flex flex-col h-full p-4 md:p-6 pb-4 md:pb-6">
       {/* Header Controls */}
       <div className="flex flex-col space-y-4 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
