@@ -810,6 +810,50 @@ const TaskEditor: React.FC<{
                 />
               </div>
 
+              {/* Mobile Attachments (Chatter Tab Only) */}
+              <div className={`mb-8 md:hidden ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
+                    {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
+                    ATTACHMENTS ({formData.attachments.length})
+                  </button>
+                  {!readOnly && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Upload Attachment"
+                      >
+                        <Paperclip size={14} />
+                      </button>
+                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    </>
+                  )}
+                </div>
+
+                {showAttachments && (
+                  <div className="space-y-2">
+                    {formData.attachments.map(att => (
+                      <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
+                        <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
+                          <FileText size={12} />
+                        </div>
+                        <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
+                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
+                          <p className="text-[10px] text-slate-400">{att.size}</p>
+                        </button>
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
+                          <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
+                          {!readOnly && <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>}
+                        </div>
+                      </div>
+                    ))}
+                    {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
+                  </div>
+                )}
+              </div>
+
               {/* Comments Section */}
               <div className={`mb-8 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
                 <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
@@ -1052,8 +1096,8 @@ const TaskEditor: React.FC<{
                 )}
               </div>
 
-              {/* Attachments Section */}
-              <div className={`border-t border-slate-200/60 pt-4 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
+              {/* Attachments Section (Desktop Only) */}
+              <div className="hidden md:block border-t border-slate-200/60 pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
