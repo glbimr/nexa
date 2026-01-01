@@ -54,7 +54,7 @@ const IncomingCallOverlay: React.FC = () => {
   useEffect(() => {
     if (incomingCall) {
       // Play Ringtone
-      audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+      audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2368/2368-preview.mp3');
       audioRef.current.loop = true;
 
       const playPromise = audioRef.current.play();
