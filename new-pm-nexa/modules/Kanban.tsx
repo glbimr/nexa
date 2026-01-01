@@ -371,8 +371,9 @@ const KanbanColumn: React.FC<ColumnProps> = ({
   };
   return (
     <div
+      onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, status)}
-      className="bg-slate-50/50 p-4 rounded-xl min-h-[500px] flex flex-col border border-slate-100 h-auto md:h-full"
+      className="bg-slate-50/50 p-4 rounded-xl min-h-[500px] flex flex-col border border-slate-100 h-full"
     >
       <div className="flex justify-between items-center mb-4 sticky top-0 bg-slate-50/50 backdrop-blur-sm p-1 z-10">
         <h3 className="font-bold text-slate-700 flex items-center text-sm uppercase tracking-wide">
@@ -385,7 +386,7 @@ const KanbanColumn: React.FC<ColumnProps> = ({
           {tasks.length}
         </span>
       </div>
-      <div className="space-y-4 flex-1 md:overflow-y-auto overflow-visible pr-1 pb-2 custom-scrollbar">
+      <div className="space-y-4 flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar">
         {sortedTasks.map(task => (
           <TaskCardItem
             key={task.id}
@@ -1666,7 +1667,7 @@ export const KanbanBoard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 pb-4 md:pb-6">
+    <div className="flex flex-col h-full p-4 md:p-6 pb-24 md:pb-6">
       {/* Header Controls */}
       <div className="flex flex-col space-y-4 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1748,9 +1749,9 @@ export const KanbanBoard: React.FC = () => {
 
       {/* Content Area */}
       {viewMode === 'board' ? (
-        <div className="flex-1 md:overflow-x-auto md:overflow-y-hidden overflow-visible overflow-x-hidden">
-          <div className="flex flex-col md:flex-row h-auto md:h-full gap-6 md:min-w-0">
-            <div className="w-full md:flex-1 md:min-w-[300px] h-auto md:h-full">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <div className="flex h-full gap-6 min-w-[1000px] md:min-w-0">
+            <div className="flex-1 min-w-[300px] h-full">
               <KanbanColumn
                 status={TaskStatus.TODO}
                 title="To Do"
@@ -1765,7 +1766,7 @@ export const KanbanBoard: React.FC = () => {
                 onUpdateTask={updateTask}
               />
             </div>
-            <div className="w-full md:flex-1 md:min-w-[300px] h-auto md:h-full">
+            <div className="flex-1 min-w-[300px] h-full">
               <KanbanColumn
                 status={TaskStatus.IN_PROGRESS}
                 title="In Progress"
@@ -1780,7 +1781,7 @@ export const KanbanBoard: React.FC = () => {
                 onUpdateTask={updateTask}
               />
             </div>
-            <div className="w-full md:flex-1 md:min-w-[300px] h-auto md:h-full">
+            <div className="flex-1 min-w-[300px] h-full">
               <KanbanColumn
                 status={TaskStatus.DONE}
                 title="Done"
