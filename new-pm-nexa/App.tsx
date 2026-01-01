@@ -30,8 +30,12 @@ import {
   Home,
   Volume2,
   VolumeX,
-  MoreHorizontal
+  MoreHorizontal,
+  Play,
+  Pause,
+  Music
 } from 'lucide-react';
+
 import { UserRole, NotificationType } from './types';
 
 // Predefined avatars for quick selection
@@ -46,15 +50,21 @@ const PREDEFINED_AVATARS = [
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Leo'
 ];
 
+
+const AVAILABLE_RINGTONES = [
+  { name: 'Marimba Groove', url: 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3' },
+  { name: 'Classic Phone', url: 'https://assets.mixkit.co/active_storage/sfx/2368/2368-preview.mp3' },
+  { name: 'Soft Chime', url: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' } // Assuming valid, fallback to others if silence
+];
 const IncomingCallOverlay: React.FC = () => {
-  const { incomingCall, users, acceptIncomingCall, rejectIncomingCall } = useApp();
+  const { incomingCall, users, acceptIncomingCall, rejectIncomingCall, ringtone } = useApp();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioError, setAudioError] = useState(false);
 
   useEffect(() => {
     if (incomingCall) {
       // Play Ringtone
-      audioRef.current = new Audio('https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3');
+      audioRef.current = new Audio(ringtone);
       audioRef.current.loop = true;
 
       const playPromise = audioRef.current.play();
@@ -164,7 +174,8 @@ const MainLayout: React.FC = () => {
   const {
     currentUser, logout, updateUser,
     notifications, markNotificationRead, clearNotifications,
-    totalUnreadChatCount
+    totalUnreadChatCount,
+    ringtone, setRingtone
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'chat' | 'admin'>('dashboard');
@@ -174,6 +185,29 @@ const MainLayout: React.FC = () => {
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [previewAvatar, setPreviewAvatar] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Ringtone Preview State
+  const [playingRingtone, setPlayingRingtone] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggleRingtonePreview = (url: string) => {
+    if (playingRingtone === url) {
+      previewAudioRef.current?.pause();
+      setPlayingRingtone(null);
+    } else {
+      if (previewAudioRef.current) previewAudioRef.current.pause();
+      previewAudioRef.current = new Audio(url);
+      previewAudioRef.current.play();
+      previewAudioRef.current.onended = () => setPlayingRingtone(null);
+      setPlayingRingtone(url);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) previewAudioRef.current.pause();
+    };
+  }, []);
 
   // Notification Modal State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -430,11 +464,13 @@ const MainLayout: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Avatar Gallery */}
-          <div className="w-full md:w-7/12 p-6 flex flex-col">
-            <div className="flex-1">
+          {/* Right Column: Settings & Gallery */}
+          <div className="w-full md:w-7/12 p-6 flex flex-col space-y-6 overflow-y-auto max-h-[500px]">
+
+            {/* Avatar Gallery */}
+            <div>
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
-                <span className="flex-1">Select from Gallery</span>
+                <span className="flex-1">Profile Picture</span>
                 <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full normal-case">8 styles</span>
               </h4>
 
@@ -459,6 +495,52 @@ const MainLayout: React.FC = () => {
               </div>
             </div>
 
+            {/* Ringtone Settings */}
+            <div className="pt-6 border-t border-slate-100">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
+                <span className="flex-1">Incoming Call Ringtone</span>
+                <Music size={14} className="text-slate-400" />
+              </h4>
+
+              <div className="space-y-3">
+                {AVAILABLE_RINGTONES.map((rt) => (
+                  <div
+                    key={rt.url}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${ringtone === rt.url ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'
+                      }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => toggleRingtonePreview(rt.url)}
+                        className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm"
+                      >
+                        {playingRingtone === rt.url ? <Pause size={18} fill="currentColor" className="opacity-80" /> : <Play size={18} fill="currentColor" className="opacity-80 md:ml-0.5" />}
+                      </button>
+                      <div>
+                        <p className={`text-sm font-semibold ${ringtone === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
+                        {ringtone === rt.url && <p className="text-[10px] text-indigo-600 font-medium">Active Ringtone</p>}
+                      </div>
+                    </div>
+
+                    {ringtone === rt.url ? (
+                      <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setRingtone(rt.url)}
+                        className="px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                      >
+                        Select
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+
+
             <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end space-x-3">
               <button
                 onClick={() => setIsAvatarModalOpen(false)}
@@ -476,7 +558,7 @@ const MainLayout: React.FC = () => {
             </div>
           </div>
         </div>
-      </Modal>
+      </Modal >
 
       <Modal
         isOpen={isNotificationOpen}
@@ -576,7 +658,7 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
       </Modal>
-    </div>
+    </div >
   );
 };
 

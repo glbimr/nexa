@@ -63,6 +63,10 @@ interface AppContextType {
   rejectIncomingCall: () => void;
   endCall: () => void;
   toggleScreenShare: () => Promise<void>;
+
+  // Preferences
+  ringtone: string;
+  setRingtone: (url: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -112,6 +116,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [hasAudioDevice, setHasAudioDevice] = useState(true);
   const [hasVideoDevice, setHasVideoDevice] = useState(true);
+
+  // User Preferences
+  const [ringtone, setRingtoneState] = useState<string>(() => {
+    return localStorage.getItem('nexus_pm_ringtone') || 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3';
+  });
+
+  const setRingtone = (url: string) => {
+    setRingtoneState(url);
+    localStorage.setItem('nexus_pm_ringtone', url);
+  };
 
   // WebRTC Refs - Now using a Map for multiple connections
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -1603,7 +1617,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deletedMessageIds, clearChatHistory,
       login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, addProject, updateProject, deleteProject,
       triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
-      startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera
+      startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
+      ringtone, setRingtone
     }}>
       {children}
     </AppContext.Provider>
