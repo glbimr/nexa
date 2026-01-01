@@ -674,7 +674,8 @@ const TaskEditor: React.FC<{
             name: file.name,
             size: (file.size / 1024).toFixed(1) + ' KB',
             type: file.type,
-            url: data.publicUrl
+            url: data.publicUrl,
+            uploadedBy: currentUser?.id
           });
         } catch (err) {
           console.error('Error processing task attachment:', err);
@@ -860,7 +861,9 @@ const TaskEditor: React.FC<{
                         </button>
                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -929,7 +932,7 @@ const TaskEditor: React.FC<{
                             {renderWithMentions(c.text, users)}
                           </p>
                         </div>
-                        {(c.userId === currentUser?.id) && (
+                        {(c.userId === currentUser?.id || currentUser?.role === 'ADMIN') && (
                           <button
                             type="button"
                             onClick={() => deleteComment(c.id)}
@@ -1070,7 +1073,6 @@ const TaskEditor: React.FC<{
                                 const updatedTask = { ...formData, subtasks: updatedSubtasks };
                                 setFormData(updatedTask);
                               }}
-                              disabled={readOnly}
                               className={`mr-2 flex-shrink-0 ${sub.completed ? 'text-green-500' : 'text-slate-300 hover:text-indigo-500'}`}
                             >
                               {sub.completed ? <CheckSquare size={16} /> : <Square size={16} />}
@@ -1141,7 +1143,9 @@ const TaskEditor: React.FC<{
                         </button>
                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1156,11 +1160,9 @@ const TaskEditor: React.FC<{
         {/* FOOTER */}
         <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
           <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-            {readOnly ? 'Close' : 'Cancel'}
+            Cancel
           </button>
-          {!readOnly && (
-            <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Task</button>
-          )}
+          <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Task</button>
         </div>
 
       </form>
@@ -1313,7 +1315,8 @@ const SubtaskEditor: React.FC<{
             name: file.name,
             size: (file.size / 1024).toFixed(1) + ' KB',
             type: file.type,
-            url: data.publicUrl
+            url: data.publicUrl,
+            uploadedBy: currentUser?.id
           });
         } catch (err) {
           console.error('Error processing subtask attachment:', err);
@@ -1496,7 +1499,9 @@ const SubtaskEditor: React.FC<{
                         </button>
                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {!readOnly && <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>}
+                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
+                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1562,7 +1567,7 @@ const SubtaskEditor: React.FC<{
                             {renderWithMentions(c.text, users)}
                           </p>
                         </div>
-                        {(c.userId === currentUser?.id) && (
+                        {(c.userId === currentUser?.id || currentUser?.role === 'ADMIN') && (
                           <button
                             type="button"
                             onClick={() => deleteComment(c.id)}
@@ -1692,7 +1697,9 @@ const SubtaskEditor: React.FC<{
                         </button>
                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {!readOnly && <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>}
+                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN' || !att.uploadedBy) && (
+                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1707,11 +1714,9 @@ const SubtaskEditor: React.FC<{
         {/* FOOTER */}
         <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
           <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-            {readOnly ? 'Close' : 'Cancel'}
+            Cancel
           </button>
-          {!readOnly && (
-            <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
-          )}
+          <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
         </div>
 
       </form>

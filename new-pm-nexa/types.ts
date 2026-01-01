@@ -69,6 +69,7 @@ export interface Attachment {
   size: string;
   type: string;
   url?: string;
+  uploadedBy?: string;
 }
 
 export interface Comment {
