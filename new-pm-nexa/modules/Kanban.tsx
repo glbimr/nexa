@@ -1232,6 +1232,9 @@ const SubtaskEditor: React.FC<{
   const [isDescriptionActive, setIsDescriptionActive] = useState(false);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Mobile Tabs State
+  const [activeTab, setActiveTab] = useState<'details' | 'chatter'>('details');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onUpdate) {
@@ -1332,16 +1335,34 @@ const SubtaskEditor: React.FC<{
     <Modal isOpen={true} onClose={onClose} title="Edit Subtask" maxWidth="max-w-6xl" className="h-[90vh]" noScroll={true}>
       <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
 
+        {/* Mobile Tabs */}
+        <div className="flex md:hidden border-b border-slate-200 bg-slate-50 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('details')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('chatter')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Chatter
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-0">
           <div className="flex flex-col lg:flex-row min-h-full">
 
             {/* LEFT COLUMN */}
             <div className="flex-1 p-6 md:p-8 bg-white border-r border-slate-100">
-              <div className="mb-2 text-sm text-slate-500 flex items-center">
+              <div className={`mb-2 text-sm text-slate-500 flex items-center ${activeTab === 'chatter' ? 'hidden md:flex' : ''}`}>
                 <span className="font-semibold mr-2">Parent Task:</span> {task.title}
               </div>
 
-              <div className="mb-6">
+              <div className={`mb-6 ${activeTab === 'chatter' ? 'hidden md:block' : ''}`}>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Subtask Title
@@ -1377,7 +1398,7 @@ const SubtaskEditor: React.FC<{
                 />
               </div>
 
-              <div className="mb-8">
+              <div className={`mb-8 ${activeTab === 'chatter' ? 'hidden md:block' : ''}`}>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Description
@@ -1411,8 +1432,54 @@ const SubtaskEditor: React.FC<{
                 />
               </div>
 
+
+
+              {/* Mobile Attachments (Chatter Tab Only) */}
+              <div className={`mb-8 md:hidden ${activeTab === 'chatter' ? 'block' : 'hidden'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
+                    {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
+                    ATTACHMENTS ({formData.attachments.length})
+                  </button>
+                  {!readOnly && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Upload Attachment"
+                      >
+                        <Paperclip size={14} />
+                      </button>
+                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    </>
+                  )}
+                </div>
+
+                {showAttachments && (
+                  <div className="space-y-2">
+                    {formData.attachments.map(att => (
+                      <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
+                        <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
+                          <FileText size={12} />
+                        </div>
+                        <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
+                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
+                          <p className="text-[10px] text-slate-400">{att.size}</p>
+                        </button>
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
+                          <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
+                          {!readOnly && <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>}
+                        </div>
+                      </div>
+                    ))}
+                    {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
+                  </div>
+                )}
+              </div>
+
               {/* Comments Section */}
-              <div className="mb-8">
+              <div className={`mb-8 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
                 <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                   Comments ({formData.comments.length})
                 </label>
@@ -1489,7 +1556,7 @@ const SubtaskEditor: React.FC<{
             {/* RIGHT COLUMN */}
             <div className="w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6">
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${activeTab === 'chatter' ? 'hidden md:grid' : ''}`}>
                 {/* Status / Completed */}
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
@@ -1569,8 +1636,8 @@ const SubtaskEditor: React.FC<{
                 </div>
               </div>
 
-              {/* Attachments Section */}
-              <div className="border-t border-slate-200/60 pt-4">
+              {/* Attachments Section (Desktop Only) */}
+              <div className={`hidden md:block border-t border-slate-200/60 pt-4`}>
                 <div className="flex items-center justify-between mb-3">
                   <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
