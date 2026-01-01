@@ -581,7 +581,7 @@ const TaskEditor: React.FC<{
   const [isDescriptionActive, setIsDescriptionActive] = useState(false);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Mobile Tab State
+  // Mobile Tabs State
   const [activeTab, setActiveTab] = useState<'details' | 'chatter'>('details');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -714,9 +714,21 @@ const TaskEditor: React.FC<{
       <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
 
         {/* Mobile Tabs */}
-        <div className="flex shrink-0 border-b border-slate-200 md:hidden bg-white">
-          <button type="button" onClick={() => setActiveTab('details')} className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500'}`}>Details</button>
-          <button type="button" onClick={() => setActiveTab('chatter')} className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500'}`}>Chatter</button>
+        <div className="flex md:hidden border-b border-slate-200 bg-slate-50 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('details')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('chatter')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Chatter
+          </button>
         </div>
 
         {/* Scrollable Content Area: Single scroll for entire form except fixed footer */}
@@ -799,7 +811,7 @@ const TaskEditor: React.FC<{
               </div>
 
               {/* Comments Section */}
-              <div className="mb-8">
+              <div className={`mb-8 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
                 <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                   Comments ({formData.comments.length})
                 </label>
@@ -879,7 +891,7 @@ const TaskEditor: React.FC<{
             {/* RIGHT COLUMN: Sidebar Metadata & Lists */}
             <div className="w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6">
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${activeTab === 'chatter' ? 'hidden md:grid' : ''}`}>
                 {/* Status / Completed */}
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
@@ -1041,7 +1053,7 @@ const TaskEditor: React.FC<{
               </div>
 
               {/* Attachments Section */}
-              <div className="border-t border-slate-200/60 pt-4">
+              <div className={`border-t border-slate-200/60 pt-4 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
                 <div className="flex items-center justify-between mb-3">
                   <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
@@ -1176,9 +1188,6 @@ const SubtaskEditor: React.FC<{
   const [isDescriptionActive, setIsDescriptionActive] = useState(false);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Mobile Tab State
-  const [activeTab, setActiveTab] = useState<'details' | 'chatter'>('details');
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onUpdate) {
@@ -1279,22 +1288,16 @@ const SubtaskEditor: React.FC<{
     <Modal isOpen={true} onClose={onClose} title="Edit Subtask" maxWidth="max-w-6xl" className="h-[90vh]" noScroll={true}>
       <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
 
-        {/* Mobile Tabs */}
-        <div className="flex shrink-0 border-b border-slate-200 md:hidden bg-white">
-          <button type="button" onClick={() => setActiveTab('details')} className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${activeTab === 'details' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500'}`}>Details</button>
-          <button type="button" onClick={() => setActiveTab('chatter')} className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${activeTab === 'chatter' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500'}`}>Chatter</button>
-        </div>
-
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-0">
           <div className="flex flex-col lg:flex-row min-h-full">
 
             {/* LEFT COLUMN */}
             <div className="flex-1 p-6 md:p-8 bg-white border-r border-slate-100">
-              <div className={`mb-2 text-sm text-slate-500 flex items-center ${activeTab === 'chatter' ? 'hidden md:flex' : ''}`}>
+              <div className="mb-2 text-sm text-slate-500 flex items-center">
                 <span className="font-semibold mr-2">Parent Task:</span> {task.title}
               </div>
 
-              <div className={`mb-6 ${activeTab === 'chatter' ? 'hidden md:block' : ''}`}>
+              <div className="mb-6">
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Subtask Title
@@ -1330,8 +1333,7 @@ const SubtaskEditor: React.FC<{
                 />
               </div>
 
-              {/* Description */}
-              <div className={`mb-8 ${activeTab === 'chatter' ? 'hidden md:block' : ''}`}>
+              <div className="mb-8">
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Description
@@ -1366,7 +1368,7 @@ const SubtaskEditor: React.FC<{
               </div>
 
               {/* Comments Section */}
-              <div className={`mb-8 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
+              <div className="mb-8">
                 <label className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                   Comments ({formData.comments.length})
                 </label>
@@ -1443,7 +1445,7 @@ const SubtaskEditor: React.FC<{
             {/* RIGHT COLUMN */}
             <div className="w-full lg:w-96 bg-slate-50 p-6 border-l border-slate-200 flex flex-col gap-6">
 
-              <div className={`grid grid-cols-2 gap-4 ${activeTab === 'chatter' ? 'hidden md:grid' : ''}`}>
+              <div className="grid grid-cols-2 gap-4">
                 {/* Status / Completed */}
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">State</label>
@@ -1524,7 +1526,7 @@ const SubtaskEditor: React.FC<{
               </div>
 
               {/* Attachments Section */}
-              <div className={`border-t border-slate-200/60 pt-4 ${activeTab === 'details' ? 'hidden md:block' : ''}`}>
+              <div className="border-t border-slate-200/60 pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
                     {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
