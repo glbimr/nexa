@@ -386,7 +386,7 @@ const KanbanColumn: React.FC<ColumnProps> = ({
           {tasks.length}
         </span>
       </div>
-      <div className="space-y-4 flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar md:[&::-webkit-scrollbar]:hidden md:[scrollbar-width:none]">
+      <div className="space-y-4 flex-1 overflow-y-auto pr-1 pb-2 custom-scrollbar [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {sortedTasks.map(task => (
           <TaskCardItem
             key={task.id}
