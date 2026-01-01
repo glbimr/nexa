@@ -934,11 +934,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return m;
     }));
 
-    // RPC to update DB
-    await supabase.rpc('mark_messages_read', {
-      p_chat_id: chatId,
-      p_user_id: currentUser.id
-    });
+    // Direct update to public.messages to ensure is_read is persisted
+    try {
+      if (chatId === 'general') {
+        await supabase.from('messages').update({ is_read: true })
+          .is('recipient_id', null)
+          .neq('sender_id', currentUser.id)
+          .eq('is_read', false);
+      } else if (chatId.startsWith('g-')) {
+        await supabase.from('messages').update({ is_read: true })
+          .eq('recipient_id', chatId)
+          .neq('sender_id', currentUser.id)
+          .eq('is_read', false);
+      } else {
+        // DM: messages where sender is the chat partner and recipient is me
+        await supabase.from('messages').update({ is_read: true })
+          .eq('sender_id', chatId)
+          .eq('recipient_id', currentUser.id)
+          .eq('is_read', false);
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
   };
 
   const getUnreadCount = (chatId: string) => {
