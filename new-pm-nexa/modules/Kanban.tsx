@@ -92,7 +92,12 @@ const TaskCardItem: React.FC<{
     };
   }, [isAssigning, assigningSubtaskId]);
 
+  const { currentUser } = useApp();
+  const hasProjectWrite = currentUser?.role === 'ADMIN' || (currentUser?.projectAccess?.[task.projectId] === 'write');
+  const isEditable = canEdit && hasProjectWrite;
+
   const toggleSubtaskCompletion = (subtaskId: string) => {
+    if (!isEditable) return;
     const updatedSubtasks = task.subtasks.map(s =>
       s.id === subtaskId ? { ...s, completed: !s.completed, status: !s.completed ? TaskStatus.DONE : TaskStatus.TODO } : s
     );
@@ -100,11 +105,13 @@ const TaskCardItem: React.FC<{
   };
 
   const handleAssign = (userId: string | undefined) => {
+    if (!isEditable) return;
     onUpdateTask({ ...task, assigneeId: userId });
     setIsAssigning(false);
   };
 
   const handleSubtaskAssign = (subtaskId: string, userId: string | undefined) => {
+    if (!isEditable) return;
     const updatedSubtasks = task.subtasks.map(s =>
       s.id === subtaskId ? { ...s, assigneeId: userId } : s
     );
@@ -114,8 +121,8 @@ const TaskCardItem: React.FC<{
 
   return (
     <div
-      draggable={canEdit}
-      onDragStart={(e) => onDragStart(e, task.id)}
+      draggable={isEditable}
+      onDragStart={(e) => { if (isEditable) onDragStart(e, task.id); }}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -128,7 +135,7 @@ const TaskCardItem: React.FC<{
         onDropOnTask(e, task.id, e.clientY < midY ? 'before' : 'after');
       }}
       className={`bg-white p-3 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 transition-all group relative 
-        ${canEdit ? 'cursor-grab active:cursor-grabbing hover:shadow-lg hover:border-indigo-100 hover:-translate-y-0.5' : 'cursor-default opacity-90'}
+        ${isEditable ? 'cursor-grab active:cursor-grabbing hover:shadow-lg hover:border-indigo-100 hover:-translate-y-0.5' : 'cursor-default opacity-90'}
         ${(isAssigning || assigningSubtaskId) ? 'z-[100] ring-2 ring-indigo-100 shadow-xl' : 'z-0'}
       `}
     >
@@ -158,7 +165,7 @@ const TaskCardItem: React.FC<{
             className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-slate-50 transition-colors"
             title={canEdit ? "Edit Task" : "View Details"}
           >
-            {canEdit ? <Pencil size={14} /> : <Eye size={14} />}
+            {isEditable ? <Pencil size={14} /> : <Eye size={14} />}
           </button>
         </div>
       </div>
@@ -182,15 +189,15 @@ const TaskCardItem: React.FC<{
         {/* Assignee Avatar - Increased Size */}
         <div ref={assigneeRef} className="relative shrink-0">
           <button
-            onClick={(e) => { e.stopPropagation(); if (canEdit) setIsAssigning(!isAssigning); }}
-            className={`flex items-center transition-transform hover:scale-105 ${canEdit ? 'cursor-pointer' : ''}`}
-            title={canEdit ? "Click to reassign" : "Assignee"}
-            disabled={!canEdit}
+            onClick={(e) => { e.stopPropagation(); if (isEditable) setIsAssigning(!isAssigning); }}
+            className={`flex items-center transition-transform hover:scale-105 ${isEditable ? 'cursor-pointer' : ''}`}
+            title={isEditable ? "Click to reassign" : "Assignee"}
+            disabled={!isEditable}
           >
             {assignee ? (
               <div className="relative">
                 <img src={assignee.avatar} alt={assignee.name} className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm" />
-                {canEdit && <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-slate-200"><Settings size={10} className="text-slate-500" /></div>}
+                {isEditable && <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-slate-200"><Settings size={10} className="text-slate-500" /></div>}
               </div>
             ) : (
               <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border-2 border-slate-50 border-dashed hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-500 transition-colors">
@@ -256,9 +263,9 @@ const TaskCardItem: React.FC<{
               <div key={sub.id} className="flex items-center justify-between group/sub bg-slate-50 p-2 rounded-lg border border-slate-100">
                 <div className="flex items-center flex-1 min-w-0">
                   <button
-                    onClick={(e) => { e.stopPropagation(); if (canEdit) toggleSubtaskCompletion(sub.id); }}
+                    onClick={(e) => { e.stopPropagation(); if (isEditable) toggleSubtaskCompletion(sub.id); }}
                     className={`mr-3 flex-shrink-0 transition-colors ${sub.completed ? 'text-green-500' : 'text-slate-300 hover:text-indigo-500'}`}
-                    disabled={!canEdit}
+                    disabled={!isEditable}
                   >
                     {sub.completed ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
@@ -283,9 +290,9 @@ const TaskCardItem: React.FC<{
                   {/* Subtask Assignee Reassign Icon */}
                   <div className="relative" ref={assigningSubtaskId === sub.id ? subtaskAssigneeRef : null}>
                     <button
-                      onClick={(e) => { e.stopPropagation(); if (canEdit) setAssigningSubtaskId(assigningSubtaskId === sub.id ? null : sub.id); }}
-                      className={`p-1 rounded-full transition-colors ${canEdit ? 'hover:bg-slate-200 cursor-pointer' : 'cursor-default'}`}
-                      disabled={!canEdit}
+                      onClick={(e) => { e.stopPropagation(); if (isEditable) setAssigningSubtaskId(assigningSubtaskId === sub.id ? null : sub.id); }}
+                      className={`p-1 rounded-full transition-colors ${isEditable ? 'hover:bg-slate-200 cursor-pointer' : 'cursor-default'}`}
+                      disabled={!isEditable}
                       title={subAssignee ? `Assigned to ${subAssignee.name}` : "Assign Subtask"}
                     >
                       {subAssignee ? (
@@ -328,9 +335,9 @@ const TaskCardItem: React.FC<{
 
                   <button
                     onClick={(e) => { e.stopPropagation(); onEditSubtask(task, sub); }}
-                    className={`text-slate-400 hover:text-indigo-600 p-1 hover:bg-white rounded transition-colors ${!canEdit && 'cursor-default'}`}
+                    className={`text-slate-400 hover:text-indigo-600 p-1 hover:bg-white rounded transition-colors ${!isEditable && 'cursor-default'}`}
                   >
-                    {canEdit ? <Pencil size={12} /> : <Eye size={12} />}
+                    {isEditable ? <Pencil size={12} /> : <Eye size={12} />}
                   </button>
                 </div>
               </div>
@@ -1971,7 +1978,7 @@ export const KanbanBoard: React.FC = () => {
           task={editingTask}
           onClose={() => setIsTaskModalOpen(false)}
           projectId={editingTask?.projectId || (filterProject !== 'all' ? filterProject : projects[0]?.id || '')}
-          readOnly={!canEdit}
+          readOnly={!canEdit || (editingTask && (currentUser?.role !== 'ADMIN' && currentUser?.projectAccess?.[editingTask.projectId] !== 'write')) || (!editingTask && currentUser?.role !== 'ADMIN' && currentUser?.projectAccess?.[(filterProject !== 'all' ? filterProject : projects[0]?.id || '')] !== 'write')}
         />
       )}
 
@@ -1981,7 +1988,7 @@ export const KanbanBoard: React.FC = () => {
           task={editingSubtaskData.task}
           subtask={editingSubtaskData.subtask}
           onClose={() => setEditingSubtaskData(null)}
-          readOnly={!canEdit}
+          readOnly={!canEdit || (currentUser?.role !== 'ADMIN' && currentUser?.projectAccess?.[editingSubtaskData.task.projectId] !== 'write')}
         />
       )}
     </div>
