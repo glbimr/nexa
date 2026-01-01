@@ -1474,6 +1474,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 'detail' optimizes for text but can drop frames heavily during transitions, causing "black screen"
         if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'motion';
 
+        // Critical: degradationPreference 'maintain-resolution' ensures clarity over framerate
+        // This prevents the browser from downscaling the image to keep up with FPS, which causes blurriness.
+        const settings = screenTrack.getSettings();
+        // @ts-ignore
+        if (screenTrack.kind === 'video' && typeof screenTrack.contentHint !== 'undefined') {
+          // We can't easily access RTCRtpSender from track alone to set degradationPreference directly here,
+          // but we will do it on the sender below.
+        }
+
         let oldCameraStream: MediaStream | null = null;
 
         // If camera is on, mark it. We will stop it AFTER replacing tracks to avoid black gap.
@@ -1503,12 +1512,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await sender.replaceTrack(screenTrack);
 
-              // Boost Bitrate for Screen Share (Crucial for quality)
+              // Set degradation preference to maintain resolution (prevent blurring)
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
-              // Set ~3 Mbps for screen sharing
-              params.encodings[0].maxBitrate = 3000000;
-              // Prioritize resolution/fps maintainance
+
+              // Boost Bitrate for Screen Share
+              // 4.5 Mbps (4500000) provides very high quality 1080p
+              params.encodings[0].maxBitrate = 4500000;
+              params.encodings[0].minBitrate = 1000000; // Floor to prevent total mud
+
+              // Important: Prioritize resolution (sharpness) over frame rate
+              // @ts-ignore
+              params.degradationPreference = 'maintain-resolution';
+
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
             } catch (e) {
@@ -1517,7 +1533,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             try {
-              pc.addTrack(screenTrack, newVideoStream);
+              const sender = pc.addTrack(screenTrack, newVideoStream);
+
+              // Apply quality settings immediately for new tracks too
+              const params = sender.getParameters();
+              if (!params.encodings) params.encodings = [{}];
+              params.encodings[0].maxBitrate = 4500000;
+              params.encodings[0].minBitrate = 1000000;
+              // @ts-ignore
+              params.degradationPreference = 'maintain-resolution';
+              params.encodings[0].networkPriority = 'high';
+              await sender.setParameters(params);
+
               negotiationNeeded = true;
             } catch (e) { console.error('addTrack screen failed', e); }
           }
