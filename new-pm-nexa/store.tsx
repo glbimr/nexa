@@ -46,6 +46,8 @@ interface AppContextType {
   addProject: (name: string, description: string) => void;
   updateProject: (p: Project) => void;
   deleteProject: (id: string) => Promise<void>;
+  updateGroup: (g: Group) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
 
   // Notification & Unread Logic
   triggerNotification: (recipientId: string, type: NotificationType, title: string, message: string, linkTo?: string) => void;
@@ -847,6 +849,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newGroupId;
   };
 
+  const updateGroup = async (g: Group) => {
+    // Optimistic Update
+    setGroups(prev => prev.map(group => group.id === g.id ? g : group));
+
+    const { error } = await supabase.from('groups').update({
+      name: g.name,
+      member_ids: g.memberIds
+    }).eq('id', g.id);
+
+    if (error) console.error("Error updating group:", error);
+  };
+
+  const deleteGroup = async (id: string) => {
+    // Optimistic Update
+    setGroups(prev => prev.filter(g => g.id !== id));
+
+    const { error } = await supabase.from('groups').delete().eq('id', id);
+    if (error) console.error("Error deleting group:", error);
+  };
+
   const addProject = async (name: string, description: string) => {
     const newProjectId = 'p-' + Date.now();
     // Use only schema-defined columns to prevent errors
@@ -1615,7 +1637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentUser, users, projects, tasks, messages, groups, notifications, incomingCall, isInCall, activeCallData,
       localStream, remoteStreams, isScreenSharing, isMicOn, isCameraOn, hasAudioDevice, hasVideoDevice,
       deletedMessageIds, clearChatHistory,
-      login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, addProject, updateProject, deleteProject,
+      login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, updateGroup, deleteGroup, addProject, updateProject, deleteProject,
       triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
       ringtone, setRingtone
