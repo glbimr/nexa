@@ -901,9 +901,8 @@ const TaskEditor: React.FC<{
                     >
                       <Send size={16} />
                     </button>
-                    {/* Mentions Dropdown */}
                     {showMentions && filteredUsers.length > 0 && (
-                      <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                      <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                         {filteredUsers.map(u => (
                           <button
                             key={u.id}
@@ -1113,50 +1112,6 @@ const TaskEditor: React.FC<{
                 )}
               </div>
 
-              {/* Attachments Section (Desktop Only) */}
-              <div className="hidden md:block border-t border-slate-200/60 pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
-                    {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
-                    ATTACHMENTS ({formData.attachments.length})
-                  </button>
-                  {/* Enabled for everyone */}
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                      title="Upload Attachment"
-                    >
-                      <Paperclip size={14} />
-                    </button>
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                  </>
-                </div>
-
-                {showAttachments && (
-                  <div className="space-y-2">
-                    {formData.attachments.map(att => (
-                      <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
-                        <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
-                          <FileText size={12} />
-                        </div>
-                        <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
-                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
-                          <p className="text-[10px] text-slate-400">{att.size}</p>
-                        </button>
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
-                          <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN') && (
-                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
@@ -1172,50 +1127,52 @@ const TaskEditor: React.FC<{
       </form>
 
       {/* Local Subtask Editor Modal */}
-      {localEditingSubtask && (
-        <SubtaskEditor
-          task={formData}
-          subtask={localEditingSubtask}
-          onClose={() => setLocalEditingSubtask(null)}
-          readOnly={readOnly}
-          onUpdate={(updatedSub) => {
-            const updatedTask = {
-              ...formData,
-              subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
-            };
-            setFormData(updatedTask);
-            setLocalEditingSubtask(null);
-          }}
-          onInstantUpdate={(updatedSub) => {
-            const updatedTask = {
-              ...formData,
-              subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
-            };
-            setFormData(updatedTask);
-            updateTask(updatedTask);
-          }}
-        />
-      )}
+      {
+        localEditingSubtask && (
+          <SubtaskEditor
+            task={formData}
+            subtask={localEditingSubtask!}
+            onClose={() => setLocalEditingSubtask(null)}
+            readOnly={readOnly}
+            onUpdate={(updatedSub) => {
+              const updatedTask = {
+                ...formData,
+                subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
+              };
+              setFormData(updatedTask);
+              setLocalEditingSubtask(null);
+            }}
+            onInstantUpdate={(updatedSub) => {
+              const updatedTask = {
+                ...formData,
+                subtasks: formData.subtasks.map(s => s.id === updatedSub.id ? updatedSub : s)
+              };
+              setFormData(updatedTask);
+              updateTask(updatedTask);
+            }}
+          />
+        )
+      }
 
       {
         previewAttachment && (
           <Modal
             isOpen={!!previewAttachment}
             onClose={() => setPreviewAttachment(null)}
-            title={previewAttachment.name}
+            title={previewAttachment!.name}
             maxWidth="max-w-4xl"
             className="h-[80vh]"
           >
             <div className="w-full h-full flex items-center justify-center bg-slate-50">
-              {previewAttachment.type.startsWith('image/') ? (
-                <img src={previewAttachment.url} alt={previewAttachment.name} className="max-w-full max-h-full object-contain" />
-              ) : previewAttachment.type.startsWith('video/') ? (
-                <video src={previewAttachment.url} controls className="max-w-full max-h-full" />
-              ) : previewAttachment.type.startsWith('audio/') ? (
-                <audio src={previewAttachment.url} controls />
+              {previewAttachment!.type.startsWith('image/') ? (
+                <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
+              ) : previewAttachment!.type.startsWith('video/') ? (
+                <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
+              ) : previewAttachment!.type.startsWith('audio/') ? (
+                <audio src={previewAttachment!.url} controls />
               ) : (
                 <iframe
-                  src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment.url || '')}&embedded=true`}
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
                   className="w-full h-full border-none"
                   title="Document Preview"
                 />
@@ -1224,7 +1181,7 @@ const TaskEditor: React.FC<{
           </Modal>
         )
       }
-    </Modal >
+    </Modal>
   );
 };
 
@@ -1543,7 +1500,7 @@ const SubtaskEditor: React.FC<{
                       <Send size={16} />
                     </button>
                     {showMentions && filteredUsers.length > 0 && (
-                      <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                      <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                         {filteredUsers.map(u => (
                           <button
                             key={u.id}
@@ -1672,90 +1629,48 @@ const SubtaskEditor: React.FC<{
                 </div>
               </div>
 
-              {/* Attachments Section (Desktop Only) */}
-              <div className={`hidden md:block border-t border-slate-200/60 pt-4`}>
-                <div className="flex items-center justify-between mb-3">
-                  <button type="button" onClick={() => setShowAttachments(!showAttachments)} className="flex items-center text-xs font-bold text-slate-500 uppercase hover:text-indigo-600 transition-colors">
-                    {showAttachments ? <Minus size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
-                    ATTACHMENTS ({formData.attachments.length})
-                  </button>
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                      title="Upload Attachment"
-                    >
-                      <Paperclip size={14} />
-                    </button>
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                  </>
-                </div>
-
-                {showAttachments && (
-                  <div className="space-y-2">
-                    {formData.attachments.map(att => (
-                      <div key={att.id} className="flex items-center p-2 border border-slate-100 rounded-lg bg-white hover:border-slate-300 transition-colors group">
-                        <div className="w-6 h-6 bg-slate-50 rounded border border-slate-100 flex items-center justify-center text-indigo-500 mr-2">
-                          <FileText size={12} />
-                        </div>
-                        <button type="button" onClick={() => att.url && setPreviewAttachment(att)} className="flex-1 min-w-0 text-left hover:text-indigo-600">
-                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
-                          <p className="text-[10px] text-slate-400">{att.size}</p>
-                        </button>
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity px-1">
-                          <a href={att.url} download target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><Download size={12} /></a>
-                          {(att.uploadedBy === currentUser?.id || currentUser?.role === 'ADMIN' || !att.uploadedBy) && (
-                            <button type="button" onClick={() => removeAttachment(att.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {formData.attachments.length === 0 && <p className="text-xs text-slate-400 italic">No attachments added.</p>}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* FOOTER */}
-        <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
-          <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-            Cancel
-          </button>
-          <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
-        </div>
+      {/* FOOTER */}
+      <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
+        <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
+      </div>
 
-      </form>
+    </form>
 
       {
-        previewAttachment && (
-          <Modal
-            isOpen={!!previewAttachment}
-            onClose={() => setPreviewAttachment(null)}
-            title={previewAttachment.name}
-            maxWidth="max-w-4xl"
-            className="h-[80vh]"
-          >
-            <div className="w-full h-full flex items-center justify-center bg-slate-50">
-              {previewAttachment.type.startsWith('image/') ? (
-                <img src={previewAttachment.url} alt={previewAttachment.name} className="max-w-full max-h-full object-contain" />
-              ) : previewAttachment.type.startsWith('video/') ? (
-                <video src={previewAttachment.url} controls className="max-w-full max-h-full" />
-              ) : previewAttachment.type.startsWith('audio/') ? (
-                <audio src={previewAttachment.url} controls />
-              ) : (
-                <iframe
-                  src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment.url || '')}&embedded=true`}
-                  className="w-full h-full border-none"
-                  title="Document Preview"
-                />
-              )}
-            </div>
-          </Modal>
-        )
-      }
+    previewAttachment && (
+      <Modal
+        isOpen={!!previewAttachment}
+        onClose={() => setPreviewAttachment(null)}
+        title={previewAttachment!.name}
+        maxWidth="max-w-4xl"
+        className="h-[80vh]"
+      >
+        <div className="w-full h-full flex items-center justify-center bg-slate-50">
+          {previewAttachment!.type.startsWith('image/') ? (
+            <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
+          ) : previewAttachment!.type.startsWith('video/') ? (
+            <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
+          ) : previewAttachment!.type.startsWith('audio/') ? (
+            <audio src={previewAttachment!.url} controls />
+          ) : (
+            <iframe
+              src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
+              className="w-full h-full border-none"
+              title="Document Preview"
+            />
+          )}
+        </div>
+      </Modal>
+    )
+  }
     </Modal >
   );
 };
