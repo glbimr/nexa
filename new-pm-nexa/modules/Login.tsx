@@ -58,7 +58,7 @@ export const Login: React.FC = () => {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
         <div className="bg-indigo-600 p-8 text-center">
-          <h1 className="text-3xl font-bold text-white mb-2">Nexus PM</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Setu</h1>
           <p className="text-indigo-100">Project Management Simplified</p>
         </div>
 

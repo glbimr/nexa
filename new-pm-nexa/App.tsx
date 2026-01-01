@@ -357,8 +357,8 @@ const MainLayout: React.FC = () => {
         {/* Header */}
         <div className={`p-6 border-b border-slate-800 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} transition-all`}>
           <div className="flex items-center space-x-2 overflow-hidden">
-            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white shrink-0 shadow-lg shadow-indigo-500/20">N</div>
-            {!isSidebarCollapsed && <span className="text-xl font-bold whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-300">Nexus PM</span>}
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white shrink-0 shadow-lg shadow-indigo-500/20">S</div>
+            {!isSidebarCollapsed && <span className="text-xl font-bold whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-300">Setu</span>}
           </div>
         </div>
 
@@ -423,8 +423,8 @@ const MainLayout: React.FC = () => {
         {/* Mobile Header */}
         <header className="md:hidden bg-white border-b border-slate-200 p-3 px-4 flex items-center justify-between shrink-0 z-20 shadow-sm">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-indigo-200 shadow-lg">N</div>
-            <span className="font-bold text-slate-800 text-lg tracking-tight">Nexus</span>
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-indigo-200 shadow-lg">S</div>
+            <span className="font-bold text-slate-800 text-lg tracking-tight">Setu</span>
           </div>
 
           <div className="flex items-center space-x-4">
