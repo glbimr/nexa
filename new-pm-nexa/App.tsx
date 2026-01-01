@@ -639,13 +639,7 @@ const MainLayout: React.FC = () => {
                         {n.message}
                       </p>
 
-                      {/* Action Footer */}
-                      {n.linkTo && (
-                        <div className="mt-3 flex items-center text-indigo-600 font-medium text-xs group-hover:underline decoration-2 underline-offset-2">
-                          <span>View details</span>
-                          <ChevronRight size={12} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      )}
+                      {/* Action Footer Removed */}
                     </div>
 
                     {/* Unread Indicator Dot */}
