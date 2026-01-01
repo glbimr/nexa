@@ -46,22 +46,15 @@ const PREDEFINED_AVATARS = [
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Leo'
 ];
 
-const RINGTONES = [
-  { name: 'Marimba', url: 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3' },
-  { name: 'Office', url: 'https://www.orangefreesounds.com/wp-content/uploads/2019/06/Office-phone-ringtone.mp3' },
-  { name: 'Cosmic', url: 'https://www.orangefreesounds.com/wp-content/uploads/2020/09/Cosmic-ringtone.mp3' },
-  { name: 'Classic', url: 'https://assets.mixkit.co/active_storage/sfx/2368/2368-preview.mp3' }
-];
-
 const IncomingCallOverlay: React.FC = () => {
-  const { incomingCall, users, acceptIncomingCall, rejectIncomingCall, ringtoneUrl } = useApp();
+  const { incomingCall, users, acceptIncomingCall, rejectIncomingCall } = useApp();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioError, setAudioError] = useState(false);
 
   useEffect(() => {
     if (incomingCall) {
       // Play Ringtone
-      audioRef.current = new Audio(ringtoneUrl);
+      audioRef.current = new Audio('https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3');
       audioRef.current.loop = true;
 
       const playPromise = audioRef.current.play();
@@ -184,32 +177,6 @@ const MainLayout: React.FC = () => {
 
   // Notification Modal State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-
-  // Ringtone Preview State
-  const { ringtoneUrl, updateRingtone } = useApp();
-  const [playingRingtone, setPlayingRingtone] = useState<string | null>(null);
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  const toggleRingtonePreview = (url: string) => {
-    if (playingRingtone === url) {
-      previewAudioRef.current?.pause();
-      setPlayingRingtone(null);
-    } else {
-      if (previewAudioRef.current) previewAudioRef.current.pause();
-      previewAudioRef.current = new Audio(url);
-      previewAudioRef.current.play();
-      previewAudioRef.current.onended = () => setPlayingRingtone(null);
-      setPlayingRingtone(url);
-    }
-  };
-
-  // Stop preview on modal close
-  useEffect(() => {
-    if (!isAvatarModalOpen && previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      setPlayingRingtone(null);
-    }
-  }, [isAvatarModalOpen]);
 
   if (!currentUser) {
     return <Login />;
@@ -463,13 +430,11 @@ const MainLayout: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Customization */}
-          <div className="w-full md:w-7/12 p-6 flex flex-col overflow-y-auto max-h-[500px] custom-scrollbar">
-
-            {/* Avatar Section */}
-            <div className="mb-8">
+          {/* Right Column: Avatar Gallery */}
+          <div className="w-full md:w-7/12 p-6 flex flex-col">
+            <div className="flex-1">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
-                <span className="flex-1">Select Avatar</span>
+                <span className="flex-1">Select from Gallery</span>
                 <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full normal-case">8 styles</span>
               </h4>
 
@@ -494,168 +459,124 @@ const MainLayout: React.FC = () => {
               </div>
             </div>
 
-            {/* Ringtone Section */}
-            <div>
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
-                <span className="flex-1">Incoming Call Ringtone</span>
-              </h4>
-
-              <div className="space-y-2">
-                {RINGTONES.map((rt) => (
-                  <div
-                    key={rt.name}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${ringtoneUrl === rt.url
-                        ? 'border-indigo-500 bg-indigo-50/50 shadow-sm'
-                        : 'border-slate-200 hover:border-indigo-200 bg-white'
-                      }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => toggleRingtonePreview(rt.url)}
-                        className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${playingRingtone === rt.url ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                      >
-                        {playingRingtone === rt.url ? <VolumeX size={14} /> : <Volume2 size={14} />}
-                      </button>
-                      <span className={`text-sm font-medium ${ringtoneUrl === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>
-                        {rt.name}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => updateRingtone(rt.url)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${ringtoneUrl === rt.url
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                        }`}
-                    >
-                      {ringtoneUrl === rt.url ? 'Selected' : 'Select'}
-                    </button>
-                  </div>
-                ))}
-              </div>
+            <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end space-x-3">
+              <button
+                onClick={() => setIsAvatarModalOpen(false)}
+                className="px-5 py-2.5 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAvatar}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg shadow-indigo-200 text-sm flex items-center"
+              >
+                <Check size={16} className="mr-2" />
+                Save Changes
+              </button>
             </div>
-
-          </div>
-
-          <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end space-x-3">
-            <button
-              onClick={() => setIsAvatarModalOpen(false)}
-              className="px-5 py-2.5 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveAvatar}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg shadow-indigo-200 text-sm flex items-center"
-            >
-              <Check size={16} className="mr-2" />
-              Save Changes
-            </button>
           </div>
         </div>
-    </div>
-      </Modal >
+      </Modal>
 
-  <Modal
-    isOpen={isNotificationOpen}
-    onClose={() => setIsNotificationOpen(false)}
-    title="Notifications"
-    maxWidth="max-w-xl"
-    className="h-[600px] flex flex-col"
-    noScroll={true} // Handle scrolling internally for better layout control
-  >
-    <div className="flex flex-col h-full bg-slate-50/50">
-      {/* Header Actions */}
-      <div className="flex justify-between items-center px-6 py-3 bg-white border-b border-slate-100 shrink-0">
-        <h4 className="text-sm font-semibold text-slate-600 flex items-center">
-          Inbox
-          {unreadNotificationCount > 0 && (
-            <span className="ml-2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-bold">
-              {unreadNotificationCount} New
-            </span>
-          )}
-        </h4>
-        {unreadNotificationCount > 0 && (
-          <button
-            onClick={clearNotifications}
-            className="flex items-center space-x-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full transition-colors"
-          >
-            <Check size={14} />
-            <span>Read All</span>
-          </button>
-        )}
-      </div>
-
-      {/* Notification List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-        {myNotifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
-            <div className="bg-slate-100 p-4 rounded-full mb-3">
-              <Bell size={28} className="opacity-50 text-slate-500" />
-            </div>
-            <p className="font-medium text-slate-600">All caught up!</p>
-            <p className="text-sm">No new notifications for now.</p>
+      <Modal
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        title="Notifications"
+        maxWidth="max-w-xl"
+        className="h-[600px] flex flex-col"
+        noScroll={true} // Handle scrolling internally for better layout control
+      >
+        <div className="flex flex-col h-full bg-slate-50/50">
+          {/* Header Actions */}
+          <div className="flex justify-between items-center px-6 py-3 bg-white border-b border-slate-100 shrink-0">
+            <h4 className="text-sm font-semibold text-slate-600 flex items-center">
+              Inbox
+              {unreadNotificationCount > 0 && (
+                <span className="ml-2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-bold">
+                  {unreadNotificationCount} New
+                </span>
+              )}
+            </h4>
+            {unreadNotificationCount > 0 && (
+              <button
+                onClick={clearNotifications}
+                className="flex items-center space-x-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full transition-colors"
+              >
+                <Check size={14} />
+                <span>Read All</span>
+              </button>
+            )}
           </div>
-        ) : (
-          myNotifications.map(n => (
-            <div
-              key={n.id}
-              className={`relative group p-4 rounded-xl border transition-all duration-200 cursor-pointer ${n.read
-                ? 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
-                : 'bg-white border-indigo-100 shadow-sm ring-1 ring-indigo-50/50'
-                }`}
-              onClick={() => !n.read && markNotificationRead(n.id)}
-            >
-              <div className="flex items-start space-x-4">
-                {/* Icon Side */}
-                <div className={`mt-1 p-2.5 rounded-xl shrink-0 ${n.type === NotificationType.MENTION ? 'bg-blue-100 text-blue-600' :
-                  n.type === NotificationType.ASSIGNMENT ? 'bg-green-100 text-green-600' :
-                    n.type === NotificationType.MISSED_CALL ? 'bg-rose-100 text-rose-600' :
-                      'bg-slate-100 text-slate-600'
-                  }`}>
-                  {n.type === NotificationType.MENTION && <AtSign size={18} />}
-                  {n.type === NotificationType.ASSIGNMENT && <CheckCircle2 size={18} />}
-                  {n.type === NotificationType.MISSED_CALL && <PhoneMissed size={18} />}
-                  {n.type === NotificationType.SYSTEM && <Bell size={18} />}
+
+          {/* Notification List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            {myNotifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+                <div className="bg-slate-100 p-4 rounded-full mb-3">
+                  <Bell size={28} className="opacity-50 text-slate-500" />
                 </div>
-
-                {/* Content Side */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <h5 className={`text-sm font-semibold truncate pr-4 ${n.read ? 'text-slate-700' : 'text-slate-900 group-hover:text-indigo-700'}`}>
-                      {n.title}
-                    </h5>
-                    <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                      {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-
-                  <p className={`text-sm leading-relaxed ${n.read ? 'text-slate-500' : 'text-slate-600'}`}>
-                    {n.message}
-                  </p>
-
-                  {/* Action Footer */}
-                  {n.linkTo && (
-                    <div className="mt-3 flex items-center text-indigo-600 font-medium text-xs group-hover:underline decoration-2 underline-offset-2">
-                      <span>View details</span>
-                      <ChevronRight size={12} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Unread Indicator Dot */}
-                {!n.read && (
-                  <div className="absolute top-4 right-4 w-2 h-2 bg-indigo-500 rounded-full"></div>
-                )}
+                <p className="font-medium text-slate-600">All caught up!</p>
+                <p className="text-sm">No new notifications for now.</p>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            ) : (
+              myNotifications.map(n => (
+                <div
+                  key={n.id}
+                  className={`relative group p-4 rounded-xl border transition-all duration-200 cursor-pointer ${n.read
+                    ? 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
+                    : 'bg-white border-indigo-100 shadow-sm ring-1 ring-indigo-50/50'
+                    }`}
+                  onClick={() => !n.read && markNotificationRead(n.id)}
+                >
+                  <div className="flex items-start space-x-4">
+                    {/* Icon Side */}
+                    <div className={`mt-1 p-2.5 rounded-xl shrink-0 ${n.type === NotificationType.MENTION ? 'bg-blue-100 text-blue-600' :
+                      n.type === NotificationType.ASSIGNMENT ? 'bg-green-100 text-green-600' :
+                        n.type === NotificationType.MISSED_CALL ? 'bg-rose-100 text-rose-600' :
+                          'bg-slate-100 text-slate-600'
+                      }`}>
+                      {n.type === NotificationType.MENTION && <AtSign size={18} />}
+                      {n.type === NotificationType.ASSIGNMENT && <CheckCircle2 size={18} />}
+                      {n.type === NotificationType.MISSED_CALL && <PhoneMissed size={18} />}
+                      {n.type === NotificationType.SYSTEM && <Bell size={18} />}
+                    </div>
+
+                    {/* Content Side */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <h5 className={`text-sm font-semibold truncate pr-4 ${n.read ? 'text-slate-700' : 'text-slate-900 group-hover:text-indigo-700'}`}>
+                          {n.title}
+                        </h5>
+                        <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                          {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      <p className={`text-sm leading-relaxed ${n.read ? 'text-slate-500' : 'text-slate-600'}`}>
+                        {n.message}
+                      </p>
+
+                      {/* Action Footer */}
+                      {n.linkTo && (
+                        <div className="mt-3 flex items-center text-indigo-600 font-medium text-xs group-hover:underline decoration-2 underline-offset-2">
+                          <span>View details</span>
+                          <ChevronRight size={12} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Unread Indicator Dot */}
+                    {!n.read && (
+                      <div className="absolute top-4 right-4 w-2 h-2 bg-indigo-500 rounded-full"></div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
-  </Modal>
-    </div >
   );
 };
 
