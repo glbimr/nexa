@@ -1666,7 +1666,7 @@ export const KanbanBoard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 pb-24 md:pb-6">
+    <div className="flex flex-col h-full p-4 md:p-6 pb-4 md:pb-6">
       {/* Header Controls */}
       <div className="flex flex-col space-y-4 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1748,7 +1748,7 @@ export const KanbanBoard: React.FC = () => {
 
       {/* Content Area */}
       {viewMode === 'board' ? (
-        <div className="flex-1 md:overflow-x-auto md:overflow-y-hidden overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 md:overflow-x-auto md:overflow-y-hidden overflow-visible overflow-x-hidden">
           <div className="flex flex-col md:flex-row h-auto md:h-full gap-6 md:min-w-0">
             <div className="w-full md:flex-1 md:min-w-[300px] h-auto md:h-full">
               <KanbanColumn
