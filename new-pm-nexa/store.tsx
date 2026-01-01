@@ -475,17 +475,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           case 'SCREEN_STOPPED': {
-            // Sender stopped screen sharing; ensure remoteStreams for that sender drop video tracks
+            // Sender stopped screen sharing
             try {
-              setRemoteStreams(prev => {
-                const newMap = new Map(prev);
-                const existing = newMap.get(senderId);
-                if (!existing) return prev;
-                const audioTracks = existing.getAudioTracks();
-                const newStream = new MediaStream(audioTracks);
-                newMap.set(senderId, newStream);
-                return newMap;
-              });
+              const { hasCameraFallback } = signalPayload as any;
+
+              if (hasCameraFallback) {
+                // If the user switched back to camera, DO NOT remove the video track.
+                // The track itself is persisted via replaceTrack, so the stream should just continue playing.
+                // We might force a re-render if needed, but removing it is definitely wrong.
+                // console.log("Screen stopped, switching to camera - keeping video track");
+              } else {
+                // Sender actually stopped video entirely (no camera fallback)
+                // NOW we remove the video tracks to show avatar/audio-only
+                setRemoteStreams(prev => {
+                  const newMap = new Map(prev);
+                  const existing = newMap.get(senderId);
+                  if (!existing) return prev;
+
+                  // Create new stream with ONLY audio tracks
+                  const audioTracks = existing.getAudioTracks();
+                  const newStream = new MediaStream(audioTracks);
+                  newMap.set(senderId, newStream);
+                  return newMap;
+                });
+              }
             } catch (e) { console.error('Error handling SCREEN_STOPPED', e); }
             break;
           }
@@ -510,11 +523,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendSignal = async (type: SignalData['type'], recipientId: string | undefined, payload: any) => {
     if (signalingChannelRef.current && currentUser) {
-      // STRICT CHECK: Only send if subscribed via WebSocket to avoid "falling back to REST API" warnings
-      if (!isSignalingConnectedRef.current) {
-        // Silently drop if not connected - fallback behavior causes console noise
-        return;
-      }
+      if (!isSignalingConnectedRef.current) return;
 
       try {
         await signalingChannelRef.current.send({
@@ -532,6 +541,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
   };
+
+  // --- Actions ---
+
+  // ... (keeping lines 538-1326 unchanged implicitly, but since we are replacing a block, we focus on the functions we need to change)
+  // Wait, I cannot skip lines in replace_file_content if they are in the range. 
+  // I must check where SCREEN_STOPPED is (lines ~477-490) and where the screen share functions are (lines ~1327-1463).
+  // These are far apart. I should use MULTI_REPLACE.
+
+  // Let me switch to multi_replace_file_content to handle these disparate blocks cleanly.
+  // Cancelling this tool call and switching strategies.
+
 
   // --- Actions ---
 
@@ -1068,7 +1088,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Attach audio track to all peer connections
         for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+          const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
           if (sender) {
             try { await sender.replaceTrack(newTrack); } catch (e) { console.error('replaceTrack audio failed', e); }
           } else {
@@ -1098,7 +1118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const active = audioTracks.find(t => t.readyState === 'live') || audioTracks[0];
       if (active) {
         for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+          const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
           if (sender && sender.track !== active) {
             try { await sender.replaceTrack(active); } catch (e) { console.error('replaceTrack audio on unmute failed', e); }
           } else if (!sender) {
@@ -1132,7 +1152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Update peers: clear video sender
       for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'video');
         if (sender) {
           try { await sender.replaceTrack(null); } catch (e) { console.error('replaceTrack null video failed', e); }
         }
@@ -1159,7 +1179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Update peers
       for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'video');
         if (sender) {
           try { await sender.replaceTrack(videoTrack); } catch (e) { console.error('replaceTrack video failed', e); }
         } else {
@@ -1313,7 +1333,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localVideoStreamRef.current = null;
       setLocalVideoStream(null);
     }
-    peerConnectionsRef.current.forEach(pc => pc.close());
+    peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
     peerConnectionsRef.current.clear();
     setLocalStream(null);
     setRemoteStreams(new Map());
@@ -1329,38 +1349,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const aStream = localAudioStreamRef.current || localAudioStream;
     if (peerConnectionsRef.current.size === 0 || !vStream) return;
     try {
-      // Keep audio untouched
-      // Stop and remove screen tracks from video stream
-      vStream.getVideoTracks().forEach(track => {
-        if (track.label.includes('screen') || (track.getSettings && (track.getSettings() as any).displaySurface)) {
-          track.stop();
-          vStream.removeTrack(track);
-        }
-      });
 
-      setIsScreenSharing(false);
+      let negotiationNeeded = false;
+      let hasCameraFallback = false;
 
-      // If camera was on before screen share, re-acquire camera and reattach video senders
+      // 1. If camera was on before screen share, re-acquire camera FIRST (Make-Before-Break)
       if (prevCameraWasOnRef.current) {
         try {
           const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
           const camTrack = camStream.getVideoTracks()[0];
-          // set local camera stream
-          setLocalVideoStream(new MediaStream([camTrack]));
-          localVideoStreamRef.current = new MediaStream([camTrack]);
-          setIsCameraOn(true);
 
+          // Set new local state (this might briefly show camera + screen in memory, but UI will update)
+          const newVideoStream = new MediaStream([camTrack]);
+          setLocalVideoStream(newVideoStream);
+          localVideoStreamRef.current = newVideoStream;
+          setIsCameraOn(true);
+          hasCameraFallback = true;
+
+          // Replace tracks on all peers
           for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
             const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender) {
-              try { await sender.replaceTrack(camTrack); } catch (e) { console.error('replaceTrack camera failed', e); }
+              try {
+                await sender.replaceTrack(camTrack);
+                // Reset bitrate for camera (e.g. 1Mbps)
+                const params = sender.getParameters();
+                if (params.encodings && params.encodings[0]) {
+                  params.encodings[0].maxBitrate = 1000000;
+                  delete params.encodings[0].networkPriority;
+                  await sender.setParameters(params);
+                }
+              } catch (e) { hasCameraFallback = false; console.error('replaceTrack camera failed', e); }
             } else {
-              try { pc.addTrack(camTrack, localVideoStreamRef.current!); } catch (e) { console.error('addTrack camera failed', e); }
+              try {
+                pc.addTrack(camTrack, newVideoStream);
+                negotiationNeeded = true;
+              } catch (e) { console.error('addTrack camera failed', e); }
             }
           }
         } catch (e) {
           console.error('Failed to re-acquire camera after screen stop:', e);
-          // Fallback: clear video senders so remote preview shows audio/avatar
+          // Fallback: clear video senders
           for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
             const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender) {
@@ -1370,7 +1399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         prevCameraWasOnRef.current = false;
       } else {
-        // No camera to restore: clear video senders so remote preview shows audio/avatar
+        // No camera to restore: clear video senders
         for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
           const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
           if (sender) {
@@ -1379,12 +1408,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
+      // 2. NOW Stop and remove screen tracks (Break)
+      vStream.getVideoTracks().forEach((track: MediaStreamTrack) => {
+        if (track.label.includes('screen') || (track.getSettings && (track.getSettings() as any).displaySurface)) {
+          track.stop();
+          vStream.removeTrack(track); // Clean up the old stream object
+        }
+      });
+
+      setIsScreenSharing(false);
+
       // Ensure audio senders still have correct audio track
       if (aStream) {
         const activeAudio = aStream.getAudioTracks().find(t => t.readyState === 'live');
         if (activeAudio) {
           for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+            const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
             if (sender && sender.track !== activeAudio) {
               try { await sender.replaceTrack(activeAudio); } catch (e) { console.error('replaceTrack audio failed', e); }
             }
@@ -1394,9 +1433,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Update preview
       composeLocalStream();
-      await renegotiate();
+
+      if (negotiationNeeded) {
+        await renegotiate();
+      }
+
       // Notify peers to update their remote preview state
-      try { await sendSignal('SCREEN_STOPPED', undefined, {}); } catch (e) { /* non-fatal */ }
+      // IMPORTANT: Pass hasCameraFallback so they don't screen-black the video
+      try { await sendSignal('SCREEN_STOPPED', undefined, { hasCameraFallback }); } catch (e) { /* non-fatal */ }
     } catch (e) {
       console.error('Error stopping screen share:', e);
     }
@@ -1415,48 +1459,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // @ts-ignore
             cursor: 'always',
             height: { ideal: 1080 },
-            frameRate: { ideal: 24, max: 60 }
-          }
+            frameRate: 30 // Fixed framerate provides better stability than variable max
+          },
+          audio: false // Explicitly disable audio to avoid mix-ups, or enable if system audio is desired
         });
         const screenTrack = displayStream.getVideoTracks()[0];
 
-        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'detail';
+        // 'motion' is often better for general screen sharing (browsing, UI interaction) to avoid stalled frames
+        // 'detail' optimizes for text but can drop frames heavily during transitions, causing "black screen"
+        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'motion';
 
-        // If camera is on, mark it and stop it first (mutually exclusive video track for simplicity)
+        let oldCameraStream: MediaStream | null = null;
+
+        // If camera is on, mark it. We will stop it AFTER replacing tracks to avoid black gap.
         if (isCameraOn) {
           prevCameraWasOnRef.current = true;
           if (localVideoStreamRef.current) {
-            // stop existing camera tracks; we'll re-acquire camera when screen share stops
-            localVideoStreamRef.current.getVideoTracks().forEach(t => { t.stop(); localVideoStreamRef.current!.removeTrack(t); });
-            setLocalVideoStream(null);
-            localVideoStreamRef.current = null;
+            oldCameraStream = localVideoStreamRef.current;
+            // setLocalVideoStream(null); // Don't nullify yet, transition first
           }
           setIsCameraOn(false);
         } else {
           prevCameraWasOnRef.current = false;
         }
 
-        // Create or update local video stream to contain screen track
         const newVideoStream = new MediaStream([screenTrack]);
         setLocalVideoStream(newVideoStream);
         localVideoStreamRef.current = newVideoStream;
 
-        // Handle stream ending (user clicks "Stop Sharing" in browser UI)
         screenTrack.onended = () => { stopScreenSharing(); };
+
+        let negotiationNeeded = false;
 
         // Update all peers
         for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'video');
           if (sender) {
-            try { await sender.replaceTrack(screenTrack); } catch (e) { console.error('replaceTrack screen failed', e); }
+            try {
+              await sender.replaceTrack(screenTrack);
+
+              // Boost Bitrate for Screen Share (Crucial for quality)
+              const params = sender.getParameters();
+              if (!params.encodings) params.encodings = [{}];
+              // Set ~3 Mbps for screen sharing
+              params.encodings[0].maxBitrate = 3000000;
+              // Prioritize resolution/fps maintainance
+              params.encodings[0].networkPriority = 'high';
+              await sender.setParameters(params);
+            } catch (e) {
+              console.error('replaceTrack/setParameters screen failed', e);
+              // Fallback if parameter setting fails (e.g. not supported in some states)
+            }
           } else {
-            try { pc.addTrack(screenTrack, newVideoStream); } catch (e) { console.error('addTrack screen failed', e); }
+            try {
+              pc.addTrack(screenTrack, newVideoStream);
+              negotiationNeeded = true;
+            } catch (e) { console.error('addTrack screen failed', e); }
           }
+        }
+
+        // NOW stop the old camera tracks (Make-Before-Break)
+        if (oldCameraStream) {
+          oldCameraStream.getVideoTracks().forEach(t => {
+            t.stop();
+            // oldCameraStream!.removeTrack(t); // Optional, stream is discarded anyway
+          });
         }
 
         setIsScreenSharing(true);
         composeLocalStream();
-        await renegotiate();
+
+        // Only renegotiate if we ADDED a track (topology change)
+        // replaceTrack does not require renegotiation and skipping it prevents "glitch/blink"
+        if (negotiationNeeded) {
+          await renegotiate();
+        }
+
         try { await sendSignal('SCREEN_STARTED', undefined, {}); } catch (e) { /* non-fatal */ }
       } catch (err: any) { console.error('Error starting screen share:', err); }
     }
