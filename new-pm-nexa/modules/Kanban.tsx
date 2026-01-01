@@ -1854,13 +1854,16 @@ export const KanbanBoard: React.FC = () => {
           <div className="grid grid-cols-3 gap-2 w-full md:flex md:w-auto md:items-center md:space-x-2 shrink-0">
             <SlidersHorizontal size={16} className="text-slate-400 ml-2 mr-1 hidden md:block" />
 
+            {/* Compute Visible Projects */}
             <select
               value={filterProject}
               onChange={e => setFilterProject(e.target.value)}
               className="w-full md:w-auto px-2 py-1.5 md:px-3 md:py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs md:text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-100"
             >
               <option value="all">All Projects</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects
+                .filter(p => currentUser?.role === 'ADMIN' || (currentUser?.projectAccess?.[p.id] && currentUser.projectAccess[p.id] !== 'none'))
+                .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
 
             <select
