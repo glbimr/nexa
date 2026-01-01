@@ -33,7 +33,11 @@ import {
   MoreHorizontal,
   Play,
   Pause,
-  Music
+  Music,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle
 } from 'lucide-react';
 
 import { UserRole, NotificationType } from './types';
@@ -213,6 +217,14 @@ const MainLayout: React.FC = () => {
   // Notification Modal State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
+  // Password Change State
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [showPasswords, setShowPasswords] = useState({ old: false, new: false, confirm: false });
+
   if (!currentUser) {
     return <Login />;
   }
@@ -266,6 +278,11 @@ const MainLayout: React.FC = () => {
 
   const handleOpenAvatarModal = () => {
     setPreviewAvatar(currentUser.avatar);
+    setPasswordError('');
+    setPasswordSuccess('');
+    setOldPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
     setIsAvatarModalOpen(true);
   };
 
@@ -280,6 +297,37 @@ const MainLayout: React.FC = () => {
   const handleSaveAvatar = () => {
     updateUser({ ...currentUser, avatar: previewAvatar });
     setIsAvatarModalOpen(false);
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPasswordError('All fields are required.');
+      return;
+    }
+
+    if (oldPassword !== currentUser.password) {
+      setPasswordError('Current password is incorrect.');
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      setPasswordError('Password is too short.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+
+    await updateUser({ ...currentUser, password: newPassword });
+    setPasswordSuccess('Password updated successfully!');
+    setOldPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -414,7 +462,14 @@ const MainLayout: React.FC = () => {
       {/* Profile Settings Modal (Wider & Cleaner) */}
       <Modal
         isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
+        onClose={() => {
+          setIsAvatarModalOpen(false);
+          setPasswordError('');
+          setPasswordSuccess('');
+          setOldPassword('');
+          setNewPassword('');
+          setConfirmPassword('');
+        }}
         title="Profile Settings"
         maxWidth="max-w-2xl"
       >
@@ -540,11 +595,111 @@ const MainLayout: React.FC = () => {
               </div>
             </div>
 
+            {/* Change Password Section */}
+            <div className="pt-6 border-t border-slate-100">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
+                <span className="flex-1">Security</span>
+                <Lock size={14} className="text-slate-400" />
+              </h4>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.old ? "text" : "password"}
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords(prev => ({ ...prev, old: !prev.old }))}
+                      className="absolute right-3 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPasswords.old ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.new ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all"
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                        className="absolute right-3 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPasswords.new ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Confirm New</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.confirm ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm transition-all"
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                        className="absolute right-3 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPasswords.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {passwordError && (
+                  <div className="flex items-center text-red-500 text-[11px] bg-red-50 p-2 rounded-lg border border-red-100 animate-in fade-in slide-in-from-top-1">
+                    <AlertCircle size={14} className="mr-2 flex-shrink-0" />
+                    {passwordError}
+                  </div>
+                )}
+
+                {passwordSuccess && (
+                  <div className="flex items-center text-green-600 text-[11px] bg-green-50 p-2 rounded-lg border border-green-100 animate-in fade-in slide-in-from-top-1">
+                    <Check size={14} className="mr-2 flex-shrink-0" />
+                    {passwordSuccess}
+                  </div>
+                )}
+
+                <button
+                  onClick={handlePasswordChange}
+                  className="w-full py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 font-bold text-xs rounded-lg hover:bg-indigo-100 transition-all flex items-center justify-center space-x-2"
+                >
+                  <Lock size={14} />
+                  <span>Update Password</span>
+                </button>
+              </div>
+            </div>
+
 
 
             <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end space-x-3">
               <button
-                onClick={() => setIsAvatarModalOpen(false)}
+                onClick={() => {
+                  setIsAvatarModalOpen(false);
+                  setPasswordError('');
+                  setPasswordSuccess('');
+                  setOldPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                }}
                 className="px-5 py-2.5 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
               >
                 Cancel
