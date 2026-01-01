@@ -46,6 +46,9 @@ export const Communication: React.FC = () => {
   // New Modals State
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
   const [groupInfoModal, setGroupInfoModal] = useState<{ isOpen: boolean; group: Group } | null>(null);
+  const [isAddingMembersToGroup, setIsAddingMembersToGroup] = useState(false);
+  const [addMembersSearchTerm, setAddMembersSearchTerm] = useState('');
+  const [selectedUserIdsToAdd, setSelectedUserIdsToAdd] = useState<string[]>([]);
 
   // Video Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -283,6 +286,20 @@ export const Communication: React.FC = () => {
 
     const newMemberIds = group.memberIds.filter(id => id !== memberId);
     await updateGroup({ ...group, memberIds: newMemberIds });
+  };
+
+  const handleAddMembers = async () => {
+    if (!groupInfoModal || selectedUserIdsToAdd.length === 0) return;
+    const group = groups.find(g => g.id === groupInfoModal.group.id);
+    if (group) {
+      const newMemberIds = Array.from(new Set([...group.memberIds, ...selectedUserIdsToAdd]));
+      await updateGroup({ ...group, memberIds: newMemberIds });
+      // Update local modal data optimistically
+      setGroupInfoModal(prev => prev ? { ...prev, group: { ...prev.group, memberIds: newMemberIds } } : null);
+    }
+    setIsAddingMembersToGroup(false);
+    setSelectedUserIdsToAdd([]);
+    setAddMembersSearchTerm('');
   };
 
   const handleStartCall = () => {
@@ -1090,84 +1107,136 @@ export const Communication: React.FC = () => {
 
                 {/* Members List */}
                 <div className="flex-1 overflow-y-auto p-2">
-                  <h4 className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Members</h4>
-                  <div className="space-y-1">
-                    {groupInfoModal.group.memberIds.map(memberId => {
-                      const user = users.find(u => u.id === memberId);
-                      const isAdmin = groupInfoModal.group.createdBy === memberId;
-                      const isMe = currentUser?.id === memberId;
-                      // Can I remove this user?
-                      // Yes if I am Admin/Creator AND the target is NOT me (leaving is different) AND target is not the creator?
-                      // Actually, creator can remove anyone. Admin (role) can remove anyone?
-                      const canRemove = (currentUser?.role === 'ADMIN' || groupInfoModal.group.createdBy === currentUser?.id) && memberId !== currentUser?.id;
+                  {!isAddingMembersToGroup ? (
+                    <>
+                      <h4 className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Members</h4>
+                      <div className="space-y-1">
+                        {groupInfoModal.group.memberIds.map(memberId => {
+                          const user = users.find(u => u.id === memberId);
+                          const isAdmin = groupInfoModal.group.createdBy === memberId;
+                          const isMe = currentUser?.id === memberId;
+                          const canRemove = (currentUser?.role === 'ADMIN' || groupInfoModal.group.createdBy === currentUser?.id) && memberId !== currentUser?.id;
 
-                      return (
-                        <div key={memberId} className="flex items-center justify-between p-3 mx-2 rounded-lg hover:bg-slate-50 group transition-colors">
-                          <div className="flex items-center min-w-0">
-                            <img src={user?.avatar || 'https://i.pravatar.cc/150?u=unknown'} className="w-8 h-8 rounded-full border border-slate-200 mr-3" />
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold text-slate-800 flex items-center">
-                                {user?.name || 'Unknown User'}
-                                {isAdmin && <span className="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] rounded uppercase font-bold">Admin</span>}
-                                {isMe && <span className="ml-2 text-slate-400 text-xs">(You)</span>}
+                          return (
+                            <div key={memberId} className="flex items-center justify-between p-3 mx-2 rounded-lg hover:bg-slate-50 group transition-colors">
+                              <div className="flex items-center min-w-0">
+                                <img src={user?.avatar || 'https://i.pravatar.cc/150?u=unknown'} className="w-8 h-8 rounded-full border border-slate-200 mr-3" />
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-slate-800 flex items-center">
+                                    {user?.name || 'Unknown User'}
+                                    {isAdmin && <span className="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] rounded uppercase font-bold">Admin</span>}
+                                    {isMe && <span className="ml-2 text-slate-400 text-xs">(You)</span>}
+                                  </div>
+                                  <div className="text-xs text-slate-500 truncate">@{user?.username}</div>
+                                </div>
                               </div>
-                              <div className="text-xs text-slate-500 truncate">@{user?.username}</div>
+                              {canRemove && (
+                                <button
+                                  onClick={() => {
+                                    setConfirmModal({
+                                      isOpen: true,
+                                      title: "Remove User",
+                                      message: `Are you sure you want to remove ${user?.name} from this group?`,
+                                      onConfirm: async () => {
+                                        await removeMember(groupInfoModal.group.id, memberId);
+                                        setGroupInfoModal(prev => prev ? { ...prev, group: { ...prev.group, memberIds: prev.group.memberIds.filter(id => id !== memberId) } } : null);
+                                        setConfirmModal(null);
+                                      }
+                                    });
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                  title="Remove from group"
+                                >
+                                  <X size={16} />
+                                </button>
+                              )}
                             </div>
-                          </div>
-                          {canRemove && (
-                            <button
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-4 space-y-4">
+                      <div className="relative">
+                        <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search users to add..."
+                          className="w-full pl-9 pr-4 py-2 bg-slate-100 border-none rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                          value={addMembersSearchTerm}
+                          onChange={(e) => setAddMembersSearchTerm(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="space-y-1 max-h-[250px] overflow-y-auto custom-scrollbar">
+                        {users
+                          .filter(u => !groupInfoModal.group.memberIds.includes(u.id))
+                          .filter(u => u.name.toLowerCase().includes(addMembersSearchTerm.toLowerCase()))
+                          .map(user => (
+                            <div
+                              key={user.id}
                               onClick={() => {
-                                setConfirmModal({
-                                  isOpen: true,
-                                  title: "Remove User",
-                                  message: `Are you sure you want to remove ${user?.name} from this group?`,
-                                  onConfirm: async () => {
-                                    await removeMember(groupInfoModal.group.id, memberId);
-                                    // Update local modal data optimistically or close
-                                    // Since 'groups' updates via store, this component will re-render if we use 'groups.find'
-                                    // But we passed 'group' object which is stale.
-                                    // Better to close modal or update internal state. 
-                                    // Actually, we should look up the group from 'groups' in the render to keep it fresh.
-                                    // For now, let's just update the modal data manually or close it.
-                                    // Let's rely on re-render finding updated group if we select it from IDs?
-                                    // The modal uses 'groupInfoModal.group' which is state.
-                                    // We should verify we update the modal state too or fetch fresh.
-                                    setGroupInfoModal(prev => prev ? { ...prev, group: { ...prev.group, memberIds: prev.group.memberIds.filter(id => id !== memberId) } } : null);
-                                    setConfirmModal(null);
-                                  }
-                                });
+                                if (selectedUserIdsToAdd.includes(user.id)) {
+                                  setSelectedUserIdsToAdd(prev => prev.filter(id => id !== user.id));
+                                } else {
+                                  setSelectedUserIdsToAdd(prev => [...prev, user.id]);
+                                }
                               }}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
-                              title="Remove from group"
+                              className={`flex items-center p-2 rounded-lg cursor-pointer border transition-colors ${selectedUserIdsToAdd.includes(user.id) ? 'border-indigo-500 bg-indigo-50' : 'border-transparent hover:bg-slate-50'}`}
                             >
-                              <X size={16} />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center mr-3 ${selectedUserIdsToAdd.includes(user.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                                {selectedUserIdsToAdd.includes(user.id) && <Check size={10} />}
+                              </div>
+                              <img src={user.avatar} className="w-8 h-8 rounded-full border border-slate-200 mr-2" />
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-slate-800 truncate">{user.name}</div>
+                                <div className="text-[10px] text-slate-500 truncate">@{user.username}</div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Add Member Button (Admin Only) - Optional enhancement */}
-                {(currentUser?.role === 'ADMIN' || groupInfoModal.group.createdBy === currentUser?.id) && (
-                  <div className="p-4 border-t border-slate-100 bg-slate-50">
-                    <button
-                      onClick={() => {
-                        // Open Add Member logic (reuse New Chat modal or specialized one? Keeping it simple for now as per requirements)
-                        // User requested: "view names" and "remove user". Adding is extra but nice.
-                        // I will just leave it at viewing/removing as requested.
-                        setIsNewChatModalOpen(true); // Reusing search
-                      }}
-                      className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-lg hover:bg-slate-50 transition-colors shadow-sm hidden" // Hidden for now
-                    >
-                      + Add Member
-                    </button>
-                    <p className="text-[10px] text-center text-slate-400">
-                      Admins can manage group membership.
+                {/* Footer Actions */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50">
+                  {(currentUser?.role === 'ADMIN' || groupInfoModal.group.createdBy === currentUser?.id) && (
+                    !isAddingMembersToGroup ? (
+                      <button
+                        onClick={() => setIsAddingMembersToGroup(true)}
+                        className="w-full py-2.5 bg-white border border-slate-200 text-indigo-600 font-bold text-sm rounded-xl hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <UserPlus size={16} />
+                        Add New Member
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setIsAddingMembersToGroup(false);
+                            setSelectedUserIdsToAdd([]);
+                          }}
+                          className="flex-1 py-2.5 bg-slate-200 text-slate-600 font-bold text-sm rounded-xl hover:bg-slate-300 transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleAddMembers}
+                          disabled={selectedUserIdsToAdd.length === 0}
+                          className={`flex-1 py-2.5 font-bold text-sm rounded-xl shadow-lg transition-all ${selectedUserIdsToAdd.length > 0 ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'}`}
+                        >
+                          Add ({selectedUserIdsToAdd.length})
+                        </button>
+                      </div>
+                    )
+                  )}
+                  {!isAddingMembersToGroup && (
+                    <p className="text-[10px] text-center text-slate-400 mt-3">
+                      Group created by {users.find(u => u.id === groupInfoModal.group.createdBy)?.name || 'Admin'}
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </Modal>
           )
