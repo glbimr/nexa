@@ -147,6 +147,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const prevCameraStreamRef = useRef<MediaStream | null>(null);
   const usersRef = useRef(users);
 
+  // IDs of users currently active (via Supabase Presence)
+  const [presentIds, setPresentIds] = useState<Set<string>>(new Set());
+  const presentIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    presentIdsRef.current = presentIds;
+  }, [presentIds]);
+
   // Map of ChatID -> Timestamp when current user last read it
   const [lastReadTimestamps, setLastReadTimestamps] = useState<Record<string, number>>({});
 
@@ -279,12 +287,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
-  // --- 1.5 Update Online Status on Mount/Restore ---
-  useEffect(() => {
-    if (currentUser) {
-      supabase.from('users').update({ is_online: true }).eq('id', currentUser.id);
-    }
-  }, []);
+  // --- 1.5 Update Online Status via Presence (Handled in Signaling Effect) ---
+  // No longer manual DB updates here to avoid stale status when tab is closed.
 
   // --- 1.6 Sync Current User with Users List (Refresh Data) ---
   useEffect(() => {
@@ -335,9 +339,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
         if (payload.eventType === 'UPDATE') {
-          setUsers(prev => prev.map(u => u.id === payload.new.id ? mapUserFromDB(payload.new) : u));
+          const fresh = mapUserFromDB(payload.new);
+          setUsers(prev => prev.map(u => u.id === fresh.id ? { ...fresh, isOnline: presentIdsRef.current.has(u.id) } : u));
         }
-        if (payload.eventType === 'INSERT') setUsers(prev => [...prev, mapUserFromDB(payload.new)]);
+        if (payload.eventType === 'INSERT') {
+          const fresh = mapUserFromDB(payload.new);
+          setUsers(prev => [...prev, { ...fresh, isOnline: presentIdsRef.current.has(fresh.id) }]);
+        }
         if (payload.eventType === 'DELETE') setUsers(prev => prev.filter(u => u.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, payload => {
@@ -359,15 +367,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // --- 3. WebRTC Signaling via Supabase Broadcast ---
+  // --- 3. WebRTC Signaling & Realtime Presence via Supabase ---
   useEffect(() => {
     if (!currentUser) return;
 
-    // Use a unique channel for signaling
-    const channel = supabase.channel('signaling');
+    // Use a unique channel for signaling and presence
+    const channel = supabase.channel('signaling', {
+      config: {
+        presence: {
+          key: currentUser.id,
+        },
+      },
+    });
     signalingChannelRef.current = channel;
 
+    const updatePresence = async () => {
+      if (document.visibilityState === 'visible') {
+        await channel.track({
+          user_id: currentUser.id,
+          name: currentUser.name,
+          online_at: new Date().toISOString(),
+        });
+      } else {
+        // Untrack or update metadata if hidden (user's choice: we'll untrack to be strict about "Active Now")
+        await channel.untrack();
+      }
+    };
+
     channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const activeIds = new Set<string>();
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            if (p.user_id) activeIds.add(p.user_id);
+          });
+        });
+        setPresentIds(activeIds);
+      })
       .on('broadcast', { event: 'signal' }, async ({ payload }) => {
         const { type, senderId, recipientId, payload: signalPayload } = payload as SignalData;
 
@@ -491,24 +528,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           case 'SCREEN_STOPPED': {
-            // Sender stopped screen sharing
             try {
               const { hasCameraFallback } = signalPayload as any;
-
-              if (hasCameraFallback) {
-                // If the user switched back to camera, DO NOT remove the video track.
-                // The track itself is persisted via replaceTrack, so the stream should just continue playing.
-                // We might force a re-render if needed, but removing it is definitely wrong.
-                // console.log("Screen stopped, switching to camera - keeping video track");
-              } else {
-                // Sender actually stopped video entirely (no camera fallback)
-                // NOW we remove the video tracks to show avatar/audio-only
+              if (!hasCameraFallback) {
                 setRemoteStreams(prev => {
                   const newMap = new Map(prev);
                   const existing = newMap.get(senderId);
                   if (!existing) return prev;
-
-                  // Create new stream with ONLY audio tracks
                   const audioTracks = existing.getAudioTracks();
                   const newStream = new MediaStream(audioTracks);
                   newMap.set(senderId, newStream);
@@ -523,15 +549,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           isSignalingConnectedRef.current = true;
-          // Announce online with a slight delay to ensure readiness
-          setTimeout(() => sendSignal('USER_ONLINE', undefined, {}), 100);
+          updatePresence();
+          sendSignal('USER_ONLINE', undefined, {});
         } else {
           isSignalingConnectedRef.current = false;
         }
       });
 
+    // Activity listener to track "Active Now" accurately
+    const onVisibilityChange = () => updatePresence();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       isSignalingConnectedRef.current = false;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       if (signalingChannelRef.current) supabase.removeChannel(signalingChannelRef.current);
     };
   }, [currentUser]); // DEPENDENCY REDUCED: No longer depends on isInCall or activeCallData
@@ -574,13 +605,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async (user: User) => {
     localStorage.setItem('nexus_pm_user', JSON.stringify(user));
     setCurrentUser(user);
-    await supabase.from('users').update({ is_online: true }).eq('id', user.id);
+    // Presence handles online status automatically now
   };
 
   const logout = async () => {
-    if (currentUser) {
-      await supabase.from('users').update({ is_online: false }).eq('id', currentUser.id);
-    }
     localStorage.removeItem('nexus_pm_user');
     setCurrentUser(null);
     setNotifications([]);
@@ -1631,6 +1659,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err: any) { console.error('Error starting screen share:', err); }
     }
   };
+
+  // --- 4. Sync Users List with Presence Status ---
+  useEffect(() => {
+    setUsers(prev => prev.map(u => ({
+      ...u,
+      isOnline: presentIds.has(u.id)
+    })));
+  }, [presentIds]);
 
   return (
     <AppContext.Provider value={{
