@@ -217,7 +217,8 @@ const MainLayout: React.FC = () => {
   // Notification Modal State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
-  // Password Change State
+  // Modal visibility states
+  const [isRingtoneModalOpen, setIsRingtoneModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -472,7 +473,7 @@ const MainLayout: React.FC = () => {
           setConfirmPassword('');
         }}
         title="Profile Settings"
-        maxWidth="max-w-xl"
+        maxWidth="max-w-2xl"
         noScroll={true}
       >
         <div className="flex-1 overflow-y-auto flex flex-col md:flex-row custom-scrollbar">
@@ -509,6 +510,13 @@ const MainLayout: React.FC = () => {
               >
                 <Upload size={12} />
                 <span>Upload Custom</span>
+              </button>
+              <button
+                onClick={() => setIsRingtoneModalOpen(true)}
+                className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all text-[11px] shadow-sm flex items-center justify-center space-x-2"
+              >
+                <Music size={12} />
+                <span>Change Ringtone</span>
               </button>
               <button
                 onClick={() => {
@@ -567,48 +575,6 @@ const MainLayout: React.FC = () => {
               </div>
             </div>
 
-            {/* Ringtone Settings */}
-            <div className="pt-6 border-t border-slate-100">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center">
-                <span className="flex-1">Call Ringtone</span>
-                <Music size={12} className="text-slate-400" />
-              </h4>
-
-              <div className="space-y-2">
-                {AVAILABLE_RINGTONES.map((rt) => (
-                  <div
-                    key={rt.url}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${ringtone === rt.url ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-100 hover:border-slate-200'
-                      }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => toggleRingtonePreview(rt.url)}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm ${playingRingtone === rt.url ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:text-indigo-600'}`}
-                      >
-                        {playingRingtone === rt.url ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
-                      </button>
-                      <div>
-                        <p className={`text-xs font-bold ${ringtone === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
-                      </div>
-                    </div>
-
-                    {ringtone === rt.url ? (
-                      <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white scale-110 shadow-sm">
-                        <Check size={10} strokeWidth={4} />
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setRingtone(rt.url)}
-                        className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                      >
-                        Select
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -738,6 +704,75 @@ const MainLayout: React.FC = () => {
         </div>
       </Modal>
 
+      {/* Standalone Ringtone Modal */}
+      <Modal
+        isOpen={isRingtoneModalOpen}
+        onClose={() => {
+          setIsRingtoneModalOpen(false);
+          if (previewAudioRef.current) {
+            previewAudioRef.current.pause();
+            setPlayingRingtone(null);
+          }
+        }}
+        title="Call Ringtone"
+        maxWidth="max-w-md"
+      >
+        <div className="p-6 space-y-4">
+          <div className="bg-indigo-50/50 p-4 rounded-2xl flex items-center space-x-4 mb-4">
+            <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <Music size={24} />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800">Select Ringtone</h4>
+              <p className="text-xs text-slate-500">Choose a melody for incoming calls</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {AVAILABLE_RINGTONES.map((rt) => (
+              <div
+                key={rt.url}
+                className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 ${ringtone === rt.url ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50'
+                  }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => toggleRingtonePreview(rt.url)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${playingRingtone === rt.url ? 'bg-indigo-600 text-white scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:text-indigo-600'}`}
+                  >
+                    {playingRingtone === rt.url ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-1" />}
+                  </button>
+                  <div>
+                    <p className={`text-sm font-bold ${ringtone === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
+                    {ringtone === rt.url && <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Active</p>}
+                  </div>
+                </div>
+
+                {ringtone === rt.url ? (
+                  <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                    <Check size={12} strokeWidth={4} />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setRingtone(rt.url)}
+                    className="px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
+                  >
+                    Select
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setIsRingtoneModalOpen(false)}
+            className="w-full mt-6 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
+
       {/* Notifications Modal */}
       <Modal
         isOpen={isNotificationOpen}
@@ -747,6 +782,7 @@ const MainLayout: React.FC = () => {
         className="h-[600px] flex flex-col"
         noScroll={true} // Handle scrolling internally for better layout control
       >
+
 
         <div className="flex flex-col h-full bg-slate-50/50">
           {/* Header Actions */}
@@ -831,7 +867,7 @@ const MainLayout: React.FC = () => {
             )}
           </div>
         </div>
-      </Modal>
+      </Modal >
     </div >
   );
 };
