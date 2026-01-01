@@ -1632,46 +1632,42 @@ const SubtaskEditor: React.FC<{
             </div>
           </div>
         </div>
-      </div>
 
-      {/* FOOTER */}
-      <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
-        <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-          Cancel
-        </button>
-        <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
-      </div>
-
-    </form>
-
-      {
-    previewAttachment && (
-      <Modal
-        isOpen={!!previewAttachment}
-        onClose={() => setPreviewAttachment(null)}
-        title={previewAttachment!.name}
-        maxWidth="max-w-4xl"
-        className="h-[80vh]"
-      >
-        <div className="w-full h-full flex items-center justify-center bg-slate-50">
-          {previewAttachment!.type.startsWith('image/') ? (
-            <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
-          ) : previewAttachment!.type.startsWith('video/') ? (
-            <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
-          ) : previewAttachment!.type.startsWith('audio/') ? (
-            <audio src={previewAttachment!.url} controls />
-          ) : (
-            <iframe
-              src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
-              className="w-full h-full border-none"
-              title="Document Preview"
-            />
-          )}
+        {/* FOOTER */}
+        <div className="p-3 bg-white border-t border-slate-200 flex justify-end space-x-3 shrink-0 z-20">
+          <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button type="submit" className="px-8 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Save Subtask</button>
         </div>
-      </Modal>
-    )
-  }
-    </Modal >
+      </form>
+
+      {previewAttachment && (
+        <Modal
+          isOpen={!!previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+          title={previewAttachment!.name}
+          maxWidth="max-w-4xl"
+          className="h-[80vh]"
+        >
+          <div className="w-full h-full flex items-center justify-center bg-slate-50">
+            {previewAttachment!.type.startsWith('image/') ? (
+              <img src={previewAttachment!.url} alt={previewAttachment!.name} className="max-w-full max-h-full object-contain" />
+            ) : previewAttachment!.type.startsWith('video/') ? (
+              <video src={previewAttachment!.url} controls className="max-w-full max-h-full" />
+            ) : previewAttachment!.type.startsWith('audio/') ? (
+              <audio src={previewAttachment!.url} controls />
+            ) : (
+              <iframe
+                src={`https://docs.google.com/gview?url=${encodeURIComponent(previewAttachment!.url || '')}&embedded=true`}
+                className="w-full h-full border-none"
+                title="Document Preview"
+              />
+            )}
+          </div>
+        </Modal>
+      )}
+    </Modal>
   );
 };
 
