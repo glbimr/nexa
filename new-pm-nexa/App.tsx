@@ -472,26 +472,27 @@ const MainLayout: React.FC = () => {
           setConfirmPassword('');
         }}
         title="Profile Settings"
-        maxWidth="max-w-2xl"
+        maxWidth="max-w-xl"
+        noScroll={true}
       >
-        <div className="flex flex-col md:flex-row h-full">
+        <div className="flex-1 overflow-y-auto flex flex-col md:flex-row custom-scrollbar">
           {/* Left Column: Current Profile & Actions */}
-          <div className="w-full md:w-5/12 bg-slate-50 p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100">
+          <div className="w-full md:w-[220px] bg-slate-50/50 p-6 flex flex-col items-center border-b md:border-b-0 md:border-r border-slate-100 shrink-0">
             <div className="relative group mb-4">
-              <div className="w-32 h-32 rounded-full p-1 border-4 border-white shadow-xl overflow-hidden bg-white">
+              <div className="w-24 h-24 rounded-full p-1 border-4 border-white shadow-lg overflow-hidden bg-white">
                 <img src={previewAvatar} alt="Current Avatar" className="w-full h-full rounded-full object-cover" />
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 rounded-full shadow-md hover:bg-indigo-700 transition-transform hover:scale-110"
+                className="absolute bottom-0 right-0 bg-indigo-600 text-white p-1.5 rounded-full shadow-md hover:bg-indigo-700 transition-transform hover:scale-110"
                 title="Upload Photo"
               >
-                <Camera size={18} />
+                <Camera size={14} />
               </button>
             </div>
 
-            <h3 className="text-xl font-bold text-slate-800 mb-1">{currentUser.name}</h3>
-            <p className="text-sm text-slate-500 font-medium capitalize mb-6 bg-slate-200/50 px-3 py-1 rounded-full">{currentUser.role.toLowerCase()}</p>
+            <h3 className="text-lg font-bold text-slate-800 text-center mb-0.5 mt-2 truncate w-full px-2">{currentUser.name}</h3>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-6 bg-slate-200/50 px-2 py-0.5 rounded-full">{currentUser.role}</p>
 
             <input
               type="file"
@@ -501,7 +502,7 @@ const MainLayout: React.FC = () => {
               onChange={handleFileUpload}
             />
 
-            <div className="w-full space-y-3 mt-auto">
+            <div className="w-full space-y-2 mt-auto">
               <button
                 onClick={() => {
                   setPasswordError('');
@@ -511,54 +512,54 @@ const MainLayout: React.FC = () => {
                   setConfirmPassword('');
                   setIsPasswordModalOpen(true);
                 }}
-                className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all text-sm shadow-md shadow-indigo-100 flex items-center justify-center space-x-2"
+                className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all text-[11px] shadow-sm flex items-center justify-center space-x-2"
               >
-                <Lock size={16} />
+                <Lock size={12} />
                 <span>Change Password</span>
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2.5 bg-white border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all text-sm shadow-sm"
+                className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all text-[11px] shadow-sm flex items-center justify-center space-x-2"
               >
-                Upload Custom Photo
+                <Upload size={12} />
+                <span>Upload Custom</span>
               </button>
               <button
                 onClick={() => {
                   setIsAvatarModalOpen(false);
                   logout();
                 }}
-                className="w-full py-2.5 bg-red-50 text-red-600 border border-red-100 font-medium rounded-lg hover:bg-red-100 transition-all text-sm flex items-center justify-center"
+                className="w-full py-2 bg-rose-50 text-rose-600 border border-rose-100 font-bold rounded-lg hover:bg-rose-100 transition-all text-[11px] flex items-center justify-center space-x-2"
               >
-                <LogOut size={16} className="mr-2" />
-                Sign Out
+                <LogOut size={12} />
+                <span>Sign Out</span>
               </button>
             </div>
           </div>
 
           {/* Right Column: Settings & Gallery */}
-          <div className="w-full md:w-7/12 p-6 flex flex-col space-y-6 overflow-y-auto max-h-[500px]">
-
+          <div className="flex-1 p-6 space-y-8">
             {/* Avatar Gallery */}
             <div>
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
-                <span className="flex-1">Profile Picture</span>
-                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full normal-case">8 styles</span>
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center">
+                <span className="flex-1">Profile Styles</span>
+                <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full normal-case text-[9px]">Gallery</span>
               </h4>
 
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-4 gap-3">
                 {PREDEFINED_AVATARS.map((avatar, index) => (
                   <button
                     key={index}
                     onClick={() => setPreviewAvatar(avatar)}
-                    className={`relative rounded-xl p-1 transition-all group aspect-square flex items-center justify-center ${previewAvatar === avatar
-                      ? 'bg-indigo-50 ring-2 ring-indigo-500 ring-offset-2'
-                      : 'bg-slate-50 hover:bg-slate-100 hover:ring-2 hover:ring-slate-200 hover:ring-offset-1'
+                    className={`relative rounded-xl transition-all group aspect-square flex items-center justify-center border-2 ${previewAvatar === avatar
+                      ? 'border-indigo-500 bg-indigo-50/30'
+                      : 'border-transparent bg-slate-50 hover:bg-slate-100 hover:border-slate-200'
                       }`}
                   >
-                    <img src={avatar} alt={`Avatar ${index}`} className="w-full h-full rounded-lg object-contain" />
+                    <img src={avatar} alt={`Avatar ${index}`} className="w-10 h-10 object-contain group-hover:scale-110 transition-transform" />
                     {previewAvatar === avatar && (
-                      <div className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full p-0.5 border-2 border-white shadow-sm scale-100 transition-transform">
-                        <Check size={12} />
+                      <div className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white rounded-full p-0.5 border-2 border-white shadow-sm">
+                        <Check size={8} strokeWidth={4} />
                       </div>
                     )}
                   </button>
@@ -568,39 +569,38 @@ const MainLayout: React.FC = () => {
 
             {/* Ringtone Settings */}
             <div className="pt-6 border-t border-slate-100">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
-                <span className="flex-1">Incoming Call Ringtone</span>
-                <Music size={14} className="text-slate-400" />
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center">
+                <span className="flex-1">Call Ringtone</span>
+                <Music size={12} className="text-slate-400" />
               </h4>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {AVAILABLE_RINGTONES.map((rt) => (
                   <div
                     key={rt.url}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${ringtone === rt.url ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${ringtone === rt.url ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-100 hover:border-slate-200'
                       }`}
                   >
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => toggleRingtonePreview(rt.url)}
-                        className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm"
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm ${playingRingtone === rt.url ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:text-indigo-600'}`}
                       >
-                        {playingRingtone === rt.url ? <Pause size={18} fill="currentColor" className="opacity-80" /> : <Play size={18} fill="currentColor" className="opacity-80 md:ml-0.5" />}
+                        {playingRingtone === rt.url ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
                       </button>
                       <div>
-                        <p className={`text-sm font-semibold ${ringtone === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
-                        {ringtone === rt.url && <p className="text-[10px] text-indigo-600 font-medium">Active Ringtone</p>}
+                        <p className={`text-xs font-bold ${ringtone === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
                       </div>
                     </div>
 
                     {ringtone === rt.url ? (
-                      <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white">
-                        <Check size={14} strokeWidth={3} />
+                      <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white scale-110 shadow-sm">
+                        <Check size={10} strokeWidth={4} />
                       </div>
                     ) : (
                       <button
                         onClick={() => setRingtone(rt.url)}
-                        className="px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                        className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                       >
                         Select
                       </button>
@@ -612,19 +612,19 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end space-x-3">
+        {/* Fixed Modal Footer */}
+        <div className="shrink-0 p-4 px-6 border-t border-slate-100 bg-slate-50/30 flex justify-end space-x-3">
           <button
             onClick={() => setIsAvatarModalOpen(false)}
-            className="px-5 py-2.5 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
+            className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors text-xs font-bold"
           >
             Cancel
           </button>
           <button
             onClick={handleSaveAvatar}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg shadow-indigo-200 text-sm flex items-center"
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg shadow-indigo-100 text-xs flex items-center"
           >
-            <Check size={16} className="mr-2" />
+            <Check size={14} className="mr-2" />
             Save Changes
           </button>
         </div>
