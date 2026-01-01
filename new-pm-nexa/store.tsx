@@ -1516,10 +1516,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
 
-              // Boost Bitrate for Screen Share
               // 4.5 Mbps (4500000) provides very high quality 1080p
               params.encodings[0].maxBitrate = 4500000;
-              params.encodings[0].minBitrate = 1000000; // Floor to prevent total mud
+              // minBitrate removed to fix TS build error
 
               // Important: Prioritize resolution (sharpness) over frame rate
               // @ts-ignore
@@ -1539,7 +1538,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
               params.encodings[0].maxBitrate = 4500000;
-              params.encodings[0].minBitrate = 1000000;
               // @ts-ignore
               params.degradationPreference = 'maintain-resolution';
               params.encodings[0].networkPriority = 'high';
