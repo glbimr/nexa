@@ -15,7 +15,7 @@ export const Communication: React.FC = () => {
   const {
     messages, addMessage, currentUser, users, groups, createGroup, markChatRead, getUnreadCount,
     startCall, startGroupCall, addToCall, endCall, isInCall, activeCallData, localStream, remoteStreams, isScreenSharing, toggleScreenShare,
-    isMicOn, isCameraOn, toggleMic, deletedMessageIds, clearChatHistory, hasAudioDevice
+    isMicOn, isCameraOn, toggleMic, deletedMessageIds, clearChatHistory, hasAudioDevice, updateGroup, deleteGroup
   } = useApp();
 
   // UI State
@@ -42,6 +42,10 @@ export const Communication: React.FC = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [selectedUserIdsForGroup, setSelectedUserIdsForGroup] = useState<string[]>([]);
   const [newGroupName, setNewGroupName] = useState('');
+
+  // New Modals State
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
+  const [groupInfoModal, setGroupInfoModal] = useState<{ isOpen: boolean; group: Group } | null>(null);
 
   // Video Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -230,13 +234,55 @@ export const Communication: React.FC = () => {
     setActiveMenuId(null);
   };
 
-  const handleDeleteChat = async (e: React.MouseEvent, chatId: string) => {
+  const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    await clearChatHistory(chatId);
-    setHiddenChatIds(prev => [...prev, chatId]);
-    setManualChatIds(prev => prev.filter(id => id !== chatId));
-    setActiveMenuId(null);
-    setActiveHeaderMenu(false);
+    // Check if it is a group and if we are the creator (for "Delete Group" option which is separate, but "Delete Chat" usually means clear history/hide)
+    // For now, "Delete Chat" simply hides/clears history as per standard behavior.
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Chat',
+      message: 'Are you sure you want to delete this chat? This will clear your chat history locally and hide the conversation.',
+      onConfirm: async () => {
+        await clearChatHistory(chatId);
+        setHiddenChatIds(prev => [...prev, chatId]);
+        setManualChatIds(prev => prev.filter(id => id !== chatId));
+        setActiveMenuId(null);
+        setActiveHeaderMenu(false);
+        setConfirmModal(null);
+        if (selectedChat?.id === chatId) {
+          setSelectedChat(null);
+          setShowMobileChat(false);
+        }
+      }
+    });
+  };
+
+  const handleDeepDeleteGroup = (e: React.MouseEvent, groupId: string) => {
+    e.stopPropagation();
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Group Permanently',
+      message: 'Are you sure you want to delete this group for EVERYONE? This action cannot be undone and will remove the group and all messages.',
+      onConfirm: async () => {
+        await deleteGroup(groupId);
+        setActiveMenuId(null);
+        setActiveHeaderMenu(false);
+        setConfirmModal(null);
+        if (selectedChat?.id === groupId) {
+          setSelectedChat(null);
+          setShowMobileChat(false);
+        }
+      }
+    });
+  };
+
+  const removeMember = async (groupId: string, memberId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    const newMemberIds = group.memberIds.filter(id => id !== memberId);
+    await updateGroup({ ...group, memberIds: newMemberIds });
   };
 
   const handleStartCall = () => {
@@ -837,6 +883,15 @@ export const Communication: React.FC = () => {
                       >
                         <Trash2 size={12} className="mr-2" /> Delete Chat
                       </button>
+                      {/* Admin Option: Permanently Delete Group */}
+                      {(currentUser?.role === 'ADMIN' || group.createdBy === currentUser?.id) && (
+                        <button
+                          onClick={(e) => handleDeepDeleteGroup(e, group.id)}
+                          className="w-full text-left px-4 py-2 text-xs text-red-700 font-bold hover:bg-red-100 flex items-center border-t border-red-100"
+                        >
+                          <Trash2 size={12} className="mr-2 fill-current" /> Delete Group
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -945,8 +1000,15 @@ export const Communication: React.FC = () => {
                     {selectedChat.name.substring(0, 2).toUpperCase()}
                   </div>
                 )}
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm">{selectedChat.name}</h3>
+                <div
+                  className={`cursor-pointer group/headername ${isGroup(selectedChat) ? 'hover:opacity-80' : ''}`}
+                  onClick={() => isGroup(selectedChat) && setGroupInfoModal({ isOpen: true, group: selectedChat })}
+                  title={isGroup(selectedChat) ? "View Group Info" : ""}
+                >
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center">
+                    {selectedChat.name}
+                    {isGroup(selectedChat) && <Users size={12} className="ml-1.5 opacity-40 group-hover/headername:opacity-100 transition-opacity" />}
+                  </h3>
                   {isUser(selectedChat) ? (
                     <div className="flex items-center text-xs text-green-500">
                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedChat.isOnline ? 'bg-green-500' : 'bg-slate-400'}`}></span>
@@ -1003,6 +1065,139 @@ export const Communication: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* --- Group Info Modal --- */}
+        {
+          groupInfoModal && (
+            <Modal
+              isOpen={groupInfoModal.isOpen}
+              onClose={() => setGroupInfoModal(null)}
+              title="Group Info"
+              maxWidth="max-w-md"
+              className="h-[500px]"
+              noScroll={true} // We handle scrolling internally
+            >
+              <div className="flex flex-col h-full">
+                {/* Header Info */}
+                <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-2xl mb-3 shadow-sm border border-blue-200">
+                    {groupInfoModal.group.name.substring(0, 2).toUpperCase()}
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800">{groupInfoModal.group.name}</h3>
+                  <p className="text-sm text-slate-500">{groupInfoModal.group.memberIds.length} members</p>
+                  <p className="text-xs text-slate-400 mt-1">Created {new Date(groupInfoModal.group.createdAt).toLocaleDateString()}</p>
+                </div>
+
+                {/* Members List */}
+                <div className="flex-1 overflow-y-auto p-2">
+                  <h4 className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Members</h4>
+                  <div className="space-y-1">
+                    {groupInfoModal.group.memberIds.map(memberId => {
+                      const user = users.find(u => u.id === memberId);
+                      const isAdmin = groupInfoModal.group.createdBy === memberId;
+                      const isMe = currentUser?.id === memberId;
+                      // Can I remove this user?
+                      // Yes if I am Admin/Creator AND the target is NOT me (leaving is different) AND target is not the creator?
+                      // Actually, creator can remove anyone. Admin (role) can remove anyone?
+                      const canRemove = (currentUser?.role === 'ADMIN' || groupInfoModal.group.createdBy === currentUser?.id) && memberId !== currentUser?.id;
+
+                      return (
+                        <div key={memberId} className="flex items-center justify-between p-3 mx-2 rounded-lg hover:bg-slate-50 group transition-colors">
+                          <div className="flex items-center min-w-0">
+                            <img src={user?.avatar || 'https://i.pravatar.cc/150?u=unknown'} className="w-8 h-8 rounded-full border border-slate-200 mr-3" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-800 flex items-center">
+                                {user?.name || 'Unknown User'}
+                                {isAdmin && <span className="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] rounded uppercase font-bold">Admin</span>}
+                                {isMe && <span className="ml-2 text-slate-400 text-xs">(You)</span>}
+                              </div>
+                              <div className="text-xs text-slate-500 truncate">@{user?.username}</div>
+                            </div>
+                          </div>
+                          {canRemove && (
+                            <button
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: "Remove User",
+                                  message: `Are you sure you want to remove ${user?.name} from this group?`,
+                                  onConfirm: async () => {
+                                    await removeMember(groupInfoModal.group.id, memberId);
+                                    // Update local modal data optimistically or close
+                                    // Since 'groups' updates via store, this component will re-render if we use 'groups.find'
+                                    // But we passed 'group' object which is stale.
+                                    // Better to close modal or update internal state. 
+                                    // Actually, we should look up the group from 'groups' in the render to keep it fresh.
+                                    // For now, let's just update the modal data manually or close it.
+                                    // Let's rely on re-render finding updated group if we select it from IDs?
+                                    // The modal uses 'groupInfoModal.group' which is state.
+                                    // We should verify we update the modal state too or fetch fresh.
+                                    setGroupInfoModal(prev => prev ? { ...prev, group: { ...prev.group, memberIds: prev.group.memberIds.filter(id => id !== memberId) } } : null);
+                                    setConfirmModal(null);
+                                  }
+                                });
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                              title="Remove from group"
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Add Member Button (Admin Only) - Optional enhancement */}
+                {(currentUser?.role === 'ADMIN' || groupInfoModal.group.createdBy === currentUser?.id) && (
+                  <div className="p-4 border-t border-slate-100 bg-slate-50">
+                    <button
+                      onClick={() => {
+                        // Open Add Member logic (reuse New Chat modal or specialized one? Keeping it simple for now as per requirements)
+                        // User requested: "view names" and "remove user". Adding is extra but nice.
+                        // I will just leave it at viewing/removing as requested.
+                        setIsNewChatModalOpen(true); // Reusing search
+                      }}
+                      className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-lg hover:bg-slate-50 transition-colors shadow-sm hidden" // Hidden for now
+                    >
+                      + Add Member
+                    </button>
+                    <p className="text-[10px] text-center text-slate-400">
+                      Admins can manage group membership.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Modal>
+          )
+        }
+
+        {/* --- Confirmation Modal --- */}
+        {
+          confirmModal && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{confirmModal.title}</h3>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed">{confirmModal.message}</p>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setConfirmModal(null)}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmModal.onConfirm}
+                    className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-lg shadow-red-200 transition-all"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }
 
         {/* Main Content Area (Messages OR Call Interface Placeholder) */}
         {/* Messages List - using ref for container */}
@@ -1165,10 +1360,10 @@ export const Communication: React.FC = () => {
             </button>
           </form>
         </div>
-      </div>
+      </div >
 
       {/* New Chat Modal (No changes here) */}
-      <Modal
+      < Modal
         isOpen={isNewChatModalOpen}
         onClose={() => { setIsNewChatModalOpen(false); setNewChatSearchTerm(''); }}
         title="Start New Chat"
@@ -1254,7 +1449,7 @@ export const Communication: React.FC = () => {
             </button>
           </div>
         </div>
-      </Modal>
+      </Modal >
       <Modal
         isOpen={!!previewAttachment}
         onClose={() => setPreviewAttachment(null)}
@@ -1282,7 +1477,7 @@ export const Communication: React.FC = () => {
           )}
         </div>
       </Modal>
-    </div>
+    </div >
   );
 };
 
