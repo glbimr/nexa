@@ -72,14 +72,30 @@ export const Communication: React.FC = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Check visibility
-    const isMobile = window.innerWidth < 768;
+    // Determine current chat ID
+    const currentChatId = selectedChat ? selectedChat.id : 'general';
+
+    // Check if we assume the chat is visible
+    // On mobile, showMobileChat must be true.
+    // On desktop (md+), the chat area is always visible if selectedChat is set (or default Team Chat).
+    const isMobile = window.innerWidth < 768; // 768px is md breakpoint
     if (isMobile && !showMobileChat) return;
 
-    // Trigger mark read (idempotent in store)
-    const currentChatId = selectedChat ? selectedChat.id : 'general';
-    markChatRead(currentChatId);
-  }, [messages, selectedChat, showMobileChat, currentUser, markChatRead]);
+    // Check if there are any unread messages for this chat
+    const hasUnread = messages.some(m => {
+      if (deletedMessageIds.has(m.id)) return false;
+
+      const isTarget = (currentChatId === 'general' && !m.recipientId) ||
+        (currentChatId.startsWith('g-') && m.recipientId === currentChatId) ||
+        (m.senderId === currentChatId && m.recipientId === currentUser.id); // For DMs, sender is the chat ID
+
+      return isTarget && !m.isRead && m.senderId !== currentUser.id;
+    });
+
+    if (hasUnread) {
+      markChatRead(currentChatId);
+    }
+  }, [messages, selectedChat, showMobileChat, currentUser, markChatRead, deletedMessageIds]);
 
   // Handle auto-scroll to bottom of chat
   useEffect(() => {
