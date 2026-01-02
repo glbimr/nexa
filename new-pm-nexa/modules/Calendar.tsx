@@ -76,7 +76,7 @@ export default function Calendar() {
             map[parseInt(key)].sort((a, b) => a.startTime - b.startTime);
         });
         return map;
-    }, [meetings, currentDate]);
+    }, [meetings, currentDate, currentUser?.id]);
 
     const handleOpenModal = (day?: number, meeting?: Meeting) => {
         if (meeting) {

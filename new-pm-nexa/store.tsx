@@ -218,11 +218,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const mapMeetingFromDB = (m: any): Meeting => ({
     ...m,
+    id: m.id,
+    title: m.title,
+    description: m.description,
     startTime: m.start_time,
     endTime: m.end_time,
     creatorId: m.creator_id,
     participantIds: m.participant_ids || [],
-    meetingLink: m.meeting_link,
     createdAt: m.created_at
   });
 
@@ -965,6 +967,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addMeeting = async (m: Meeting) => {
+    console.log("Attempting to add meeting:", m);
+    // Optimistic Update
+    setMeetings(prev => [...prev, m]);
+
     const { error } = await supabase.from('meetings').insert({
       id: m.id,
       title: m.title,
@@ -973,10 +979,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       end_time: m.endTime,
       creator_id: m.creatorId,
       participant_ids: m.participantIds,
-      meeting_link: m.meetingLink,
       created_at: m.createdAt
     });
-    if (error) console.error("Error adding meeting:", error);
+
+    if (error) {
+      console.error("Supabase Error adding meeting:", error);
+      // Revert Optimistic Update
+      setMeetings(prev => prev.filter(meet => meet.id !== m.id));
+      alert("Error creating meeting. Please check if the table exists in Supabase.");
+    } else {
+      console.log("Meeting added successfully");
+    }
   };
 
   const updateMeeting = async (m: Meeting) => {
@@ -986,8 +999,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: m.description,
       start_time: m.startTime,
       end_time: m.endTime,
-      participant_ids: m.participantIds,
-      meeting_link: m.meetingLink
+      participant_ids: m.participantIds
     }).eq('id', m.id);
     if (error) console.error("Error updating meeting:", error);
   };
