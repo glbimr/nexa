@@ -5,13 +5,11 @@ import { Dashboard } from './modules/Dashboard';
 import { KanbanBoard } from './modules/Kanban';
 import { Communication } from './modules/Communication';
 import { AdminPanel } from './modules/AdminPanel';
-import Calendar from './modules/Calendar';
 import { Modal } from './components/Modal';
 import {
   LayoutDashboard,
   KanbanSquare,
   MessageSquare,
-  Calendar as CalendarIcon,
   Settings,
   LogOut,
   Menu,
@@ -189,7 +187,7 @@ const MainLayout: React.FC = () => {
     ringtone, setRingtone
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'chat' | 'admin'>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Avatar Modal State
@@ -368,7 +366,6 @@ const MainLayout: React.FC = () => {
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto overflow-x-hidden">
           <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem id="projects" icon={KanbanSquare} label="Projects" />
-          <NavItem id="calendar" icon={CalendarIcon} label="Calendar" />
           <NavItem id="chat" icon={MessageSquare} label="Team Chat" badgeCount={totalUnreadChatCount} />
           {currentUser.role === UserRole.ADMIN && (
             <NavItem id="admin" icon={Settings} label="Admin Panel" />
@@ -453,7 +450,6 @@ const MainLayout: React.FC = () => {
         <div className={`flex-1 bg-slate-50 relative ${activeTab === 'chat' ? 'overflow-hidden flex flex-col mb-[64px] md:mb-0' : 'overflow-y-auto scroll-smooth pb-[80px] md:pb-0'}`}>
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'projects' && <KanbanBoard />}
-          {activeTab === 'calendar' && <Calendar />}
           {activeTab === 'chat' && <Communication />}
           {activeTab === 'admin' && <AdminPanel />}
         </div>
@@ -462,7 +458,6 @@ const MainLayout: React.FC = () => {
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.04)] h-[64px] flex items-center justify-around">
           <BottomNavItem id="dashboard" icon={LayoutDashboard} label="Home" />
           <BottomNavItem id="projects" icon={KanbanSquare} label="Projects" />
-          <BottomNavItem id="calendar" icon={CalendarIcon} label="Calendar" />
           <BottomNavItem id="chat" icon={MessageSquare} label="Chat" badgeCount={totalUnreadChatCount} />
           {currentUser.role === UserRole.ADMIN && (
             <BottomNavItem id="admin" icon={Settings} label="Admin" />

@@ -171,14 +171,3 @@ export interface SignalData {
   recipientId?: string;
   payload?: any;
 }
-
-export interface Meeting {
-  id: string;
-  title: string;
-  description: string;
-  startTime: number;
-  endTime: number;
-  creatorId: string;
-  participantIds: string[];
-  createdAt: number;
-}
