@@ -33,7 +33,6 @@ export default function Calendar() {
     const [startTime, setStartTime] = useState('');
     const [duration, setDuration] = useState('60'); // Minutes
     const [participantIds, setParticipantIds] = useState<string[]>([]);
-    const [meetingLink, setMeetingLink] = useState('');
 
     // Calendar Logic
     const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -58,7 +57,13 @@ export default function Calendar() {
 
     const meetingsByDay = useMemo(() => {
         const map: Record<number, Meeting[]> = {};
+        if (!currentUser) return map;
+
         meetings.forEach(m => {
+            // Check if user is creator or participant
+            const isUserInMeeting = m.creatorId === currentUser.id || m.participantIds.includes(currentUser.id);
+            if (!isUserInMeeting) return;
+
             const d = new Date(m.startTime);
             if (d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear()) {
                 const date = d.getDate();
@@ -82,7 +87,6 @@ export default function Calendar() {
             setStartTime(d.toISOString().slice(0, 16));
             setDuration(((meeting.endTime - meeting.startTime) / 60000).toString());
             setParticipantIds(meeting.participantIds);
-            setMeetingLink(meeting.meetingLink || '');
         } else {
             setSelectedMeeting(null);
             setTitle('');
@@ -91,7 +95,6 @@ export default function Calendar() {
             setStartTime(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
             setDuration('60');
             setParticipantIds([]);
-            setMeetingLink('');
         }
         setIsModalOpen(true);
     };
@@ -110,7 +113,6 @@ export default function Calendar() {
             endTime: end,
             creatorId: currentUser.id,
             participantIds: Array.from(new Set([...participantIds, currentUser.id])),
-            meetingLink,
             createdAt: selectedMeeting?.createdAt || Date.now()
         };
 
@@ -371,19 +373,7 @@ export default function Calendar() {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700 ml-1">Meeting Link (Optional)</label>
-                        <div className="relative">
-                            <Video className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                value={meetingLink}
-                                onChange={(e) => setMeetingLink(e.target.value)}
-                                placeholder="https://meet.google.com/..."
-                                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800"
-                            />
-                        </div>
-                    </div>
+
 
                     <div className="flex items-center justify-between pt-4 gap-4">
                         {selectedMeeting ? (
