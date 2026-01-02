@@ -144,6 +144,10 @@ export default function Calendar() {
         }
     };
 
+    const isCreator = selectedMeeting ? selectedMeeting.creatorId === currentUser?.id : true;
+    const canEdit = isCreator;
+
+
     return (
         <div className="flex flex-col h-full bg-slate-50/50">
             {/* Header */}
@@ -192,8 +196,8 @@ export default function Calendar() {
                 </div>
             </div>
 
-            {/* Calendar Grid */}
-            <div className="flex-1 overflow-hidden p-6">
+            {/* Calendar Grid (Desktop) */}
+            <div className="hidden md:flex flex-1 overflow-hidden p-6">
                 <div className="h-full border border-white/40 bg-white/20 backdrop-blur-sm rounded-3xl overflow-hidden shadow-2xl shadow-indigo-100 flex flex-col">
                     {/* Days labels */}
                     <div className="grid grid-cols-7 border-b border-slate-200/50 bg-white/50">
@@ -215,7 +219,6 @@ export default function Calendar() {
                         {Array.from({ length: daysInMonth }).map((_, i) => {
                             const day = i + 1;
                             const dayMeetings = meetingsByDay[day] || [];
-                            const isSelected = selectedDay && selectedDay.getDate() === day;
 
                             return (
                                 <div
@@ -258,10 +261,7 @@ export default function Calendar() {
                                         ))}
                                     </div>
 
-                                    {/* Add button on hover */}
-                                    <div
-                                        className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
+                                    <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
                                             onClick={(e) => {
@@ -284,44 +284,132 @@ export default function Calendar() {
                 </div>
             </div>
 
+            {/* Mobile Calendar View */}
+            <div className="md:hidden flex flex-col flex-1 overflow-hidden">
+                {/* Horizontal Date Scroller */}
+                <div className="flex overflow-x-auto p-4 gap-3 no-scrollbar bg-white/50 backdrop-blur-sm border-b border-slate-200">
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                        const dayName = DAYS[date.getDay()];
+                        const isSelected = selectedDay && selectedDay.getDate() === day;
+                        const currentDayMeetings = meetingsByDay[day] || [];
+
+                        return (
+                            <button
+                                key={day}
+                                onClick={() => setSelectedDay(date)}
+                                className={`flex flex-col items-center justify-center min-w-[50px] h-20 rounded-2xl transition-all border ${isSelected || (!selectedDay && isToday(day))
+                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-105'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
+                                    }`}
+                            >
+                                <span className="text-[10px] uppercase font-bold opacity-60 mb-1">{dayName}</span>
+                                <span className="text-lg font-bold">{day}</span>
+                                {currentDayMeetings.length > 0 && (
+                                    <div className={`w-1 h-1 rounded-full mt-1 ${isSelected || (!selectedDay && isToday(day)) ? 'bg-white' : 'bg-indigo-500'}`} />
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Day's Meetings List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-2">
+                        {selectedDay ? selectedDay.toDateString() : 'Today\'s Agenda'}
+                    </h2>
+
+                    {(meetingsByDay[(selectedDay || today).getDate()] || []).length > 0 ? (
+                        (meetingsByDay[(selectedDay || today).getDate()] || []).map(m => (
+                            <div
+                                key={m.id}
+                                onClick={() => handleOpenModal(undefined, m)}
+                                className="group p-5 bg-white border border-slate-200 rounded-3xl shadow-sm hover:border-indigo-300 transition-all active:scale-95 flex items-start justify-between"
+                            >
+                                <div className="space-y-3">
+                                    <div className="space-y-1">
+                                        <h3 className="font-bold text-slate-800 text-base">{m.title}</h3>
+                                        <p className="text-xs text-slate-500 line-clamp-1">{m.description || 'No description'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-1.5 text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            <span className="text-xs font-bold">
+                                                {new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                        <div className="flex -space-x-2">
+                                            {m.participantIds.slice(0, 3).map(pid => {
+                                                const u = users.find(user => user.id === pid);
+                                                return <img key={pid} src={u?.avatar} className="w-6 h-6 rounded-full border-2 border-white object-cover" />;
+                                            })}
+                                            {m.participantIds.length > 3 && (
+                                                <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500">
+                                                    +{m.participantIds.length - 3}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-slate-300 self-center" />
+                            </div>
+                        ))
+                    ) : (
+                        <div className="flex flex-col items-center justify-center pt-10 text-center space-y-4 px-10">
+                            <div className="p-4 bg-slate-100 rounded-full">
+                                <CalendarIcon className="w-8 h-8 text-slate-300" />
+                            </div>
+                            <div>
+                                <h3 className="text-slate-600 font-bold">No meetings today</h3>
+                                <p className="text-sm text-slate-400 font-medium">Enjoy your free time or schedule a new sync!</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Meeting Modal */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                title={selectedMeeting ? 'Edit Meeting' : 'Schedule Meeting'}
-                maxWidth="max-w-xl"
+                title={selectedMeeting ? (isCreator ? 'Edit Meeting' : 'Meeting Details') : 'Schedule Meeting'}
+                maxWidth="max-w-lg"
             >
-                <div className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700 ml-1">Title</label>
+                <div className="space-y-5">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Title</label>
                         <input
                             type="text"
                             value={title}
+                            readOnly={!canEdit}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="e.g. Weekly Sync with Marketing"
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800"
+                            className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 font-bold ${!canEdit ? 'cursor-default' : ''}`}
                         />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700 ml-1">Start Time</label>
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
                             <div className="relative">
                                 <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
                                     type="datetime-local"
                                     value={startTime}
+                                    readOnly={!canEdit}
                                     onChange={(e) => setStartTime(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800"
+                                    className={`w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 text-sm font-medium ${!canEdit ? 'cursor-default' : ''}`}
                                 />
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700 ml-1">Duration</label>
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Duration</label>
                             <select
                                 value={duration}
+                                disabled={!canEdit}
                                 onChange={(e) => setDuration(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800"
+                                className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 text-sm font-medium ${!canEdit ? 'appearance-none' : ''}`}
                             >
                                 <option value="15">15 Minutes</option>
                                 <option value="30">30 Minutes</option>
@@ -333,72 +421,78 @@ export default function Calendar() {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700 ml-1">Description</label>
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Description</label>
                         <textarea
                             value={description}
+                            readOnly={!canEdit}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="What is this meeting about?"
-                            rows={3}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 resize-none"
+                            rows={2}
+                            className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 resize-none text-sm font-medium ${!canEdit ? 'cursor-default' : ''}`}
                         />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         <div className="flex justify-between items-center mb-1">
-                            <label className="text-sm font-bold text-slate-700 ml-1">Participants</label>
-                            <span className="text-xs text-slate-400">{participantIds.length} selected</span>
+                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Participants</label>
+                            <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{participantIds.length} members</span>
                         </div>
                         <div className="flex flex-wrap gap-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl max-h-32 overflow-y-auto no-scrollbar">
-                            {users.map(u => (
-                                <button
-                                    key={u.id}
-                                    type="button"
-                                    onClick={() => {
-                                        if (participantIds.includes(u.id)) {
-                                            setParticipantIds(prev => prev.filter(id => id !== u.id));
-                                        } else {
-                                            setParticipantIds(prev => [...prev, u.id]);
-                                        }
-                                    }}
-                                    className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all ${participantIds.includes(u.id)
-                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
-                                        : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
-                                        }`}
-                                >
-                                    <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover" />
-                                    <span className="text-xs font-semibold">{u.name}</span>
-                                </button>
-                            ))}
+                            {users.map(u => {
+                                const isSelected = participantIds.includes(u.id);
+                                if (!canEdit && !isSelected) return null; // Only show members if view only
+                                return (
+                                    <button
+                                        key={u.id}
+                                        type="button"
+                                        disabled={!canEdit}
+                                        onClick={() => {
+                                            if (participantIds.includes(u.id)) {
+                                                setParticipantIds(prev => prev.filter(id => id !== u.id));
+                                            } else {
+                                                setParticipantIds(prev => [...prev, u.id]);
+                                            }
+                                        }}
+                                        className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all ${isSelected
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
+                                            } scale-95 hover:scale-100 disabled:scale-100 disabled:opacity-100`}
+                                    >
+                                        <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover" />
+                                        <span className="text-[11px] font-bold">{u.name}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-
-
                     <div className="flex items-center justify-between pt-4 gap-4">
-                        {selectedMeeting ? (
+                        {selectedMeeting && isCreator ? (
                             <button
                                 onClick={() => handleDeleteMeeting(selectedMeeting.id)}
-                                className="flex items-center gap-2 px-6 py-3 bg-rose-50 text-rose-600 rounded-2xl font-bold hover:bg-rose-100 transition-all"
+                                className="flex items-center justify-center w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all active:scale-90"
+                                title="Delete Meeting"
                             >
-                                <Trash2 className="w-5 h-5" />
-                                <span>Delete</span>
+                                <Trash2 size={20} />
                             </button>
                         ) : <div />}
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5">
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="px-8 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                                className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all text-sm"
                             >
-                                Cancel
+                                {canEdit ? 'Cancel' : 'Close'}
                             </button>
-                            <button
-                                onClick={handleSaveMeeting}
-                                className="px-10 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all"
-                            >
-                                {selectedMeeting ? 'Update' : 'Schedule'}
-                            </button>
+                            {canEdit && (
+                                <button
+                                    onClick={handleSaveMeeting}
+                                    className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 text-sm"
+                                >
+                                    {selectedMeeting ? 'Save Changes' : 'Schedule'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
