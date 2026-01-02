@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { User, Project, Task, ChatMessage, UserRole, TaskStatus, Attachment, Group, ProjectAccessLevel, Notification, NotificationType, IncomingCall, SignalData } from './types';
+import { User, Project, Task, ChatMessage, UserRole, TaskStatus, Attachment, Group, ProjectAccessLevel, Notification, NotificationType, IncomingCall, SignalData, Meeting } from './types';
 import { supabase, fetchMessages } from './supabaseClient';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -10,6 +10,7 @@ interface AppContextType {
   tasks: Task[];
   messages: ChatMessage[];
   groups: Group[];
+  meetings: Meeting[];
   notifications: Notification[];
   incomingCall: IncomingCall | null;
   isInCall: boolean;
@@ -48,6 +49,9 @@ interface AppContextType {
   deleteProject: (id: string) => Promise<void>;
   updateGroup: (g: Group) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
+  addMeeting: (m: Meeting) => Promise<void>;
+  updateMeeting: (m: Meeting) => Promise<void>;
+  deleteMeeting: (id: string) => Promise<void>;
 
   // Notification & Unread Logic
   triggerNotification: (recipientId: string, type: NotificationType, title: string, message: string, linkTo?: string) => void;
@@ -97,6 +101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
 
@@ -211,6 +216,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     read: n.read,
     linkTo: n.link_to
   });
+  const mapMeetingFromDB = (m: any): Meeting => ({
+    ...m,
+    startTime: m.start_time,
+    endTime: m.end_time,
+    creatorId: m.creator_id,
+    participantIds: m.participant_ids || [],
+    meetingLink: m.meeting_link,
+    createdAt: m.created_at
+  });
 
   // Keep Refs in sync with state
   useEffect(() => {
@@ -258,6 +272,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const { data: notifData } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false });
       if (notifData) setNotifications(notifData.map(mapNotificationFromDB));
+
+      const { data: meetingData } = await supabase.from('meetings').select('*');
+      if (meetingData) setMeetings(meetingData.map(mapMeetingFromDB));
     };
 
     fetchData();
@@ -359,6 +376,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, payload => {
         if (payload.eventType === 'INSERT') setGroups(prev => [...prev, mapGroupFromDB(payload.new)]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetings' }, payload => {
+        if (payload.eventType === 'INSERT') setMeetings(prev => [...prev, mapMeetingFromDB(payload.new)]);
+        if (payload.eventType === 'UPDATE') setMeetings(prev => prev.map(m => m.id === payload.new.id ? mapMeetingFromDB(payload.new) : m));
+        if (payload.eventType === 'DELETE') setMeetings(prev => prev.filter(m => m.id !== payload.old.id));
       })
       .subscribe();
 
@@ -930,32 +952,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProject = async (id: string) => {
-    // Optimistic update
     const oldProjects = [...projects];
     setProjects(prev => prev.filter(p => p.id !== id));
-
     try {
-      // 1. Delete tasks (Manual cascade since DB might not have ON DELETE CASCADE)
-      const { error: taskError } = await supabase.from('tasks').delete().eq('project_id', id);
-      if (taskError) {
-        console.warn("Project tasks deletion issue (proceeding with project delete):", taskError.message);
-      }
-
-      // 2. Delete project
-      const { error: projectError } = await supabase.from('projects').delete().eq('id', id);
-
-      if (projectError) {
-        throw new Error(projectError.message);
-      }
+      await supabase.from('tasks').delete().eq('project_id', id);
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
     } catch (error: any) {
       console.error("Error deleting project:", error);
-      alert("Failed to delete project. " + (error.message || "Unknown error"));
-      // Restore optimistic update
       setProjects(oldProjects);
-      // Refresh from DB to be safe
-      const { data } = await supabase.from('projects').select('*');
-      if (data) setProjects(data.map(mapProjectFromDB));
     }
+  };
+
+  const addMeeting = async (m: Meeting) => {
+    const { error } = await supabase.from('meetings').insert({
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      start_time: m.startTime,
+      end_time: m.endTime,
+      creator_id: m.creatorId,
+      participant_ids: m.participantIds,
+      meeting_link: m.meetingLink,
+      created_at: m.createdAt
+    });
+    if (error) console.error("Error adding meeting:", error);
+  };
+
+  const updateMeeting = async (m: Meeting) => {
+    setMeetings(prev => prev.map(meeting => meeting.id === m.id ? m : meeting));
+    const { error } = await supabase.from('meetings').update({
+      title: m.title,
+      description: m.description,
+      start_time: m.startTime,
+      end_time: m.endTime,
+      participant_ids: m.participantIds,
+      meeting_link: m.meetingLink
+    }).eq('id', m.id);
+    if (error) console.error("Error updating meeting:", error);
+  };
+
+  const deleteMeeting = async (id: string) => {
+    setMeetings(prev => prev.filter(m => m.id !== id));
+    const { error } = await supabase.from('meetings').delete().eq('id', id);
+    if (error) console.error("Error deleting meeting:", error);
   };
 
   const triggerNotification = async (recipientId: string, type: NotificationType, title: string, message: string, linkTo?: string) => {
@@ -1670,10 +1710,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      currentUser, users, projects, tasks, messages, groups, notifications, incomingCall, isInCall, activeCallData,
+      currentUser, users, projects, tasks, messages, groups, meetings, notifications, incomingCall, isInCall, activeCallData,
       localStream, remoteStreams, isScreenSharing, isMicOn, isCameraOn, hasAudioDevice, hasVideoDevice,
       deletedMessageIds, clearChatHistory,
       login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, updateGroup, deleteGroup, addProject, updateProject, deleteProject,
+      addMeeting, updateMeeting, deleteMeeting,
       triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
       ringtone, setRingtone
