@@ -19,12 +19,17 @@ import { Modal } from '../components/Modal';
 import { Meeting } from '../types';
 
 export const Calendar: React.FC = () => {
-    const { users, currentUser, meetings, addMeeting, deleteMeeting } = useApp();
+    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting } = useApp();
 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalPage, setModalPage] = useState<'details' | 'users'>('details');
+
+    // View/Edit State
+    const [viewingMeeting, setViewingMeeting] = useState<Meeting | null>(null);
+    const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
     // Form State
     const [title, setTitle] = useState('');
@@ -95,7 +100,25 @@ export const Calendar: React.FC = () => {
         setStartTime('09:00');
         setEndTime('10:00');
         setSelectedUserIds([]);
+        setEditingMeetingId(null);
         setModalPage('details');
+        setIsModalOpen(true);
+    };
+
+    const handleEditMeeting = (m: Meeting) => {
+        const start = new Date(m.start_time);
+        const end = new Date(m.end_time);
+
+        setTitle(m.title);
+        setDescription(m.description || '');
+        setMeetingDate(start.toISOString().split('T')[0]);
+        setStartTime(start.toTimeString().split(' ')[0].substring(0, 5));
+        setEndTime(end.toTimeString().split(' ')[0].substring(0, 5));
+        setSelectedUserIds(m.participant_ids);
+        setEditingMeetingId(m.id);
+        setModalPage('details');
+        setOpenMenuId(null);
+        setViewingMeeting(null);
         setIsModalOpen(true);
     };
 
@@ -105,8 +128,8 @@ export const Calendar: React.FC = () => {
         const startDateTime = new Date(`${meetingDate}T${startTime}`).getTime();
         const endDateTime = new Date(`${meetingDate}T${endTime}`).getTime();
 
-        const newMeeting: Meeting = {
-            id: 'mt-' + Date.now(),
+        const meetingData: Meeting = {
+            id: editingMeetingId || 'mt-' + Date.now(),
             title,
             description: description || null,
             start_time: startDateTime,
@@ -115,8 +138,14 @@ export const Calendar: React.FC = () => {
             participant_ids: selectedUserIds,
         };
 
-        await addMeeting(newMeeting);
+        if (editingMeetingId) {
+            await updateMeeting(meetingData);
+        } else {
+            await addMeeting(meetingData);
+        }
+
         setIsModalOpen(false);
+        setEditingMeetingId(null);
     };
 
     const filteredUsers = users.filter(u =>
@@ -211,10 +240,50 @@ export const Calendar: React.FC = () => {
                                         {dayMeetings.slice(0, 3).map(m => (
                                             <div
                                                 key={m.id}
-                                                className="px-2 py-1 bg-indigo-50 border border-indigo-100 rounded text-[10px] text-indigo-700 font-medium truncate flex items-center"
+                                                className="relative group/meeting px-2 py-1 bg-indigo-50 border border-indigo-100 rounded text-[10px] text-indigo-700 font-medium truncate flex items-center cursor-pointer hover:bg-indigo-100/50 transition-colors"
+                                                onClick={() => setViewingMeeting(m)}
                                             >
                                                 <div className="w-1 h-1 bg-indigo-500 rounded-full mr-1.5 shrink-0" />
-                                                {new Date(m.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - {m.title}
+                                                <span className="truncate flex-1">
+                                                    {new Date(m.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - {m.title}
+                                                </span>
+
+                                                {/* More Options */}
+                                                <div className="relative ml-1" onClick={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => setOpenMenuId(openMenuId === m.id ? null : m.id)}
+                                                        className="p-0.5 hover:bg-white rounded transition-colors opacity-0 group-hover/meeting:opacity-100"
+                                                    >
+                                                        <MoreVertical size={12} />
+                                                    </button>
+
+                                                    {openMenuId === m.id && (
+                                                        <div className="absolute right-0 top-full mt-1 w-24 bg-white rounded-lg shadow-xl border border-slate-100 z-[60] overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200">
+                                                            <button
+                                                                onClick={() => { setViewingMeeting(m); setOpenMenuId(null); }}
+                                                                className="w-full px-3 py-1.5 text-left hover:bg-slate-50 text-slate-700 flex items-center space-x-2"
+                                                            >
+                                                                <span>View</span>
+                                                            </button>
+                                                            {m.creator_id === currentUser?.id && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleEditMeeting(m)}
+                                                                        className="w-full px-3 py-1.5 text-left hover:bg-slate-50 text-indigo-600 flex items-center space-x-2"
+                                                                    >
+                                                                        <span>Edit</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => { deleteMeeting(m.id); setOpenMenuId(null); }}
+                                                                        className="w-full px-3 py-1.5 text-left hover:bg-rose-50 text-rose-600 flex items-center space-x-2"
+                                                                    >
+                                                                        <span>Delete</span>
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))}
                                         {dayMeetings.length > 3 && (
@@ -413,6 +482,104 @@ export const Calendar: React.FC = () => {
                         )}
                     </div>
                 </div>
+            </Modal>
+
+            {/* View Meeting Modal */}
+            <Modal
+                isOpen={!!viewingMeeting}
+                onClose={() => setViewingMeeting(null)}
+                title="Meeting Details"
+                maxWidth="max-w-md"
+            >
+                {viewingMeeting && (
+                    <div className="p-6 space-y-6">
+                        <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                                <h3 className="text-xl font-bold text-slate-800">{viewingMeeting.title}</h3>
+                                <div className="flex items-center text-slate-500 text-xs font-medium space-x-3">
+                                    <div className="flex items-center">
+                                        <CalendarDays size={14} className="mr-1" />
+                                        {new Date(viewingMeeting.start_time).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                                    </div>
+                                    <div className="flex items-center">
+                                        <Clock size={14} className="mr-1" />
+                                        {new Date(viewingMeeting.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(viewingMeeting.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {viewingMeeting.creator_id === currentUser?.id && (
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={() => handleEditMeeting(viewingMeeting)}
+                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-100"
+                                        title="Edit Meeting"
+                                    >
+                                        <CalendarCheck2 size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => { deleteMeeting(viewingMeeting.id); setViewingMeeting(null); }}
+                                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
+                                        title="Delete Meeting"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {viewingMeeting.description && (
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Description</label>
+                                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{viewingMeeting.description}</p>
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center">
+                                <Users size={12} className="mr-1" />
+                                Participants ({viewingMeeting.participant_ids.length + 1})
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {/* Creator */}
+                                {(() => {
+                                    const creator = users.find(u => u.id === viewingMeeting.creator_id);
+                                    return creator ? (
+                                        <div className="flex items-center p-2 rounded-lg bg-slate-50 border border-slate-100">
+                                            <img src={creator.avatar} className="w-6 h-6 rounded-full mr-2" alt={creator.name} />
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold text-slate-700 truncate">{creator.name}</p>
+                                                <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-wider">Host</p>
+                                            </div>
+                                        </div>
+                                    ) : null;
+                                })()}
+
+                                {/* Participants */}
+                                {viewingMeeting.participant_ids.map(pid => {
+                                    const user = users.find(u => u.id === pid);
+                                    if (!user) return null;
+                                    return (
+                                        <div key={pid} className="flex items-center p-2 rounded-lg bg-white border border-slate-100">
+                                            <img src={user.avatar} className="w-6 h-6 rounded-full mr-2" alt={user.name} />
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold text-slate-700 truncate">{user.name}</p>
+                                                <p className="text-[9px] text-slate-400 lowercase truncate">@{user.username}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setViewingMeeting(null)}
+                            className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-lg text-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                )}
             </Modal>
         </div>
     );
