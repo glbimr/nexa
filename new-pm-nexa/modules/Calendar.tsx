@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
+import { UserRole } from '../types';
 import {
     Calendar as CalendarIcon,
     ChevronLeft,
@@ -129,13 +130,15 @@ export const Calendar: React.FC = () => {
         const startDateTime = new Date(`${meetingDate}T${startTime}`).getTime();
         const endDateTime = new Date(`${meetingDate}T${endTime}`).getTime();
 
+        const originalMeeting = editingMeetingId ? meetings.find(m => m.id === editingMeetingId) : null;
+
         const meetingData: Meeting = {
             id: editingMeetingId || 'mt-' + Date.now(),
             title,
             description: description || null,
             start_time: startDateTime,
             end_time: endDateTime,
-            creator_id: currentUser.id,
+            creator_id: originalMeeting ? originalMeeting.creator_id : currentUser.id,
             participant_ids: selectedUserIds,
         };
 
@@ -243,7 +246,7 @@ export const Calendar: React.FC = () => {
                                             <div
                                                 key={m.id}
                                                 className="relative group/meeting px-2 py-1 bg-indigo-50 border border-indigo-100 rounded text-[10px] text-indigo-700 font-medium truncate flex items-center cursor-pointer hover:bg-indigo-100/50 transition-colors"
-                                                onClick={() => setViewingMeeting(m)}
+                                                onClick={(e) => { e.stopPropagation(); setViewingMeeting(m); }}
                                             >
                                                 <div className="w-1 h-1 bg-indigo-500 rounded-full mr-1.5 shrink-0" />
                                                 <span className="truncate flex-1">
@@ -267,7 +270,7 @@ export const Calendar: React.FC = () => {
                                                             >
                                                                 <span>View</span>
                                                             </button>
-                                                            {m.creator_id === currentUser?.id && (
+                                                            {((m.creator_id === currentUser?.id) || (currentUser?.role === UserRole.ADMIN)) && (
                                                                 <>
                                                                     <button
                                                                         onClick={() => handleEditMeeting(m)}
@@ -510,7 +513,7 @@ export const Calendar: React.FC = () => {
                                 </div>
                             </div>
 
-                            {viewingMeeting.creator_id === currentUser?.id && (
+                            {((viewingMeeting.creator_id === currentUser?.id) || (currentUser?.role === UserRole.ADMIN)) && (
                                 <div className="flex space-x-2">
                                     <button
                                         onClick={() => handleEditMeeting(viewingMeeting)}
