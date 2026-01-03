@@ -1289,80 +1289,105 @@ export const Communication: React.FC = () => {
             const sender = users.find(u => u.id === msg.senderId);
             const isMissedCall = msg.type === 'missed_call';
 
+            // Date Bifurcation Logic
+            const msgDate = new Date(msg.timestamp).toDateString();
+            const prevMsgDate = idx > 0 ? new Date(currentMessages[idx - 1].timestamp).toDateString() : null;
+            const showDateSeparator = msgDate !== prevMsgDate;
+
+            const formatDateLabel = (timestamp: number) => {
+              const d = new Date(timestamp);
+              const today = new Date();
+              const yesterday = new Date();
+              yesterday.setDate(today.getDate() - 1);
+
+              if (d.toDateString() === today.toDateString()) return 'Today';
+              if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+              return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+            };
+
             // Logic for grouping
             const isLastInSequence = idx === currentMessages.length - 1 || currentMessages[idx + 1].senderId !== msg.senderId;
             const isFirstInSequence = idx === 0 || currentMessages[idx - 1].senderId !== msg.senderId;
 
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1 animate-in slide-in-from-bottom-1 duration-200`}>
-                <div className={`flex max-w-[85%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}>
-
-                  {/* Avatar Column */}
-                  <div className={`w-6 h-6 shrink-0 flex flex-col justify-end ${isMe ? 'ml-2' : 'mr-2'}`}>
-                    {isLastInSequence ? (
-                      <img src={sender?.avatar} className="w-6 h-6 rounded-full shadow-sm border border-slate-100 object-cover" title={sender?.name} />
-                    ) : (
-                      <div className="w-6 h-6" />
-                    )}
+              <React.Fragment key={msg.id}>
+                {showDateSeparator && (
+                  <div className="flex justify-center my-6">
+                    <div className="px-4 py-1.5 bg-slate-200/60 backdrop-blur-sm rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-widest shadow-sm border border-slate-300/30">
+                      {formatDateLabel(msg.timestamp)}
+                    </div>
                   </div>
+                )}
+                <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1 animate-in slide-in-from-bottom-1 duration-200`}>
+                  <div className={`flex max-w-[85%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}>
 
-                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
-                    {/* Sender Name (Only for first message in sequence, and not me, and in group context) */}
-                    {isFirstInSequence && !isMe && (selectedChat || isGroup(selectedChat)) && (
-                      <span className="text-[10px] text-slate-400 mb-0.5 ml-1">{sender?.name}</span>
-                    )}
-
-                    {/* Message Bubble */}
-                    <div className={`px-4 py-2 shadow-sm text-sm leading-relaxed max-w-full break-words ${isMissedCall
-                      ? 'bg-red-50 border border-red-100 text-red-800 rounded-2xl'
-                      : isMe
-                        ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-sm'
-                        : 'bg-white border border-slate-100 text-slate-800 rounded-2xl rounded-tl-sm'
-                      }`}>
-                      {isMissedCall ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="p-1.5 bg-red-100 rounded-full shrink-0">
-                            <PhoneMissed size={16} className="text-red-600" />
-                          </div>
-                          <span className="font-medium">Missed Call</span>
-                        </div>
+                    {/* Avatar Column */}
+                    <div className={`w-6 h-6 shrink-0 flex flex-col justify-end ${isMe ? 'ml-2' : 'mr-2'}`}>
+                      {isLastInSequence ? (
+                        <img src={sender?.avatar} className="w-6 h-6 rounded-full shadow-sm border border-slate-100 object-cover" title={sender?.name} />
                       ) : (
-                        <>
-                          {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
-
-                          {/* Attachments */}
-                          {msg.attachments && msg.attachments.length > 0 && (
-                            <div className={`grid grid-cols-2 gap-2 ${msg.text ? 'mt-3 pt-2 border-t ' + (isMe ? 'border-indigo-500' : 'border-slate-100') : ''}`}>
-                              {msg.attachments.map(att => (
-                                <button
-                                  key={att.id}
-                                  onClick={() => att.url && setPreviewAttachment(att)}
-                                  className={`flex flex-col p-2 rounded ${isMe ? 'bg-indigo-700 hover:bg-indigo-800' : 'bg-slate-50 hover:bg-slate-100'} transition-colors w-full text-left`}
-                                >
-                                  {att.type.startsWith('image/') ? (
-                                    <img src={att.url} alt={att.name} className="w-full h-24 object-cover rounded mb-1 bg-black/10" />
-                                  ) : (
-                                    <div className="w-full h-24 flex items-center justify-center bg-black/5 rounded mb-1">
-                                      <FileText size={24} className="opacity-50" />
-                                    </div>
-                                  )}
-                                  <span className="text-[10px] truncate w-full block opacity-80">{att.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </>
+                        <div className="w-6 h-6" />
                       )}
                     </div>
 
-                    {/* Timestamp Below */}
-                    <span className={`text-[10px] text-slate-300 mt-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} min-w-0`}>
+                      {/* Sender Name (Only for first message in sequence, and not me, and in group context) */}
+                      {isFirstInSequence && !isMe && (selectedChat || isGroup(selectedChat)) && (
+                        <span className="text-[10px] text-slate-400 mb-0.5 ml-1">{sender?.name}</span>
+                      )}
 
+                      {/* Message Bubble */}
+                      <div className={`px-4 py-2 shadow-sm text-sm leading-relaxed max-w-full break-words ${isMissedCall
+                        ? 'bg-red-50 border border-red-100 text-red-800 rounded-2xl'
+                        : isMe
+                          ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-sm'
+                          : 'bg-white border border-slate-100 text-slate-800 rounded-2xl rounded-tl-sm'
+                        }`}>
+                        {isMissedCall ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="p-1.5 bg-red-100 rounded-full shrink-0">
+                              <PhoneMissed size={16} className="text-red-600" />
+                            </div>
+                            <span className="font-medium">Missed Call</span>
+                          </div>
+                        ) : (
+                          <>
+                            {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
+
+                            {/* Attachments */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className={`grid grid-cols-2 gap-2 ${msg.text ? 'mt-3 pt-2 border-t ' + (isMe ? 'border-indigo-500' : 'border-slate-100') : ''}`}>
+                                {msg.attachments.map(att => (
+                                  <button
+                                    key={att.id}
+                                    onClick={() => att.url && setPreviewAttachment(att)}
+                                    className={`flex flex-col p-2 rounded ${isMe ? 'bg-indigo-700 hover:bg-indigo-800' : 'bg-slate-50 hover:bg-slate-100'} transition-colors w-full text-left`}
+                                  >
+                                    {att.type.startsWith('image/') ? (
+                                      <img src={att.url} alt={att.name} className="w-full h-24 object-cover rounded mb-1 bg-black/10" />
+                                    ) : (
+                                      <div className="w-full h-24 flex items-center justify-center bg-black/5 rounded mb-1">
+                                        <FileText size={24} className="opacity-50" />
+                                      </div>
+                                    )}
+                                    <span className="text-[10px] truncate w-full block opacity-80">{att.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Timestamp Below */}
+                      <span className={`text-[10px] text-slate-300 mt-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+
+                    </div>
                   </div>
                 </div>
-              </div>
+              </React.Fragment>
             );
           })}
         </div>

@@ -16,7 +16,8 @@ import {
     Trash2,
     CalendarCheck2,
     Pencil,
-    BellRing
+    BellRing,
+    AlertTriangle
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 
@@ -32,6 +33,7 @@ export const Calendar: React.FC = () => {
     const [viewingMeeting, setViewingMeeting] = useState<Meeting | null>(null);
     const [viewingDayDetails, setViewingDayDetails] = useState<{ day: number, month: number, year: number } | null>(null);
     const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
+    const [meetingToDelete, setMeetingToDelete] = useState<Meeting | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
     // Form State
@@ -326,7 +328,7 @@ export const Calendar: React.FC = () => {
                                                                         <span>Edit</span>
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => { deleteMeeting(m.id); setOpenMenuId(null); }}
+                                                                        onClick={() => { setMeetingToDelete(m); setOpenMenuId(null); }}
                                                                         className="w-full px-3 py-1.5 text-left hover:bg-rose-50 text-rose-600 flex items-center space-x-2"
                                                                     >
                                                                         <span>Delete</span>
@@ -570,7 +572,7 @@ export const Calendar: React.FC = () => {
                                         <Pencil size={18} />
                                     </button>
                                     <button
-                                        onClick={() => { deleteMeeting(viewingMeeting.id); setViewingMeeting(null); }}
+                                        onClick={() => { setMeetingToDelete(viewingMeeting); setViewingMeeting(null); }}
                                         className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
                                         title="Delete Meeting"
                                     >
@@ -732,6 +734,43 @@ export const Calendar: React.FC = () => {
                                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-100 text-sm"
                             >
                                 View Details
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={!!meetingToDelete}
+                onClose={() => setMeetingToDelete(null)}
+                title="Confirm Meeting Deletion"
+                maxWidth="max-w-md"
+                className="h-auto"
+            >
+                {meetingToDelete && (
+                    <div className="p-6">
+                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-600 mb-4 mx-auto">
+                            <AlertTriangle size={24} />
+                        </div>
+                        <p className="text-center text-slate-600 mb-6">
+                            Are you sure you want to delete the meeting <span className="font-bold text-slate-800">"{meetingToDelete.title}"</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={() => setMeetingToDelete(null)}
+                                className="px-5 py-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl text-sm font-bold transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    deleteMeeting(meetingToDelete.id);
+                                    setMeetingToDelete(null);
+                                }}
+                                className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-red-200 transition-all transform hover:scale-[1.02]"
+                            >
+                                Delete Meeting
                             </button>
                         </div>
                     </div>
