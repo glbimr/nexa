@@ -185,6 +185,7 @@ const MainLayout: React.FC = () => {
   const {
     currentUser, logout, updateUser,
     notifications, markNotificationRead, clearNotifications,
+    setSelectedTaskId,
     totalUnreadChatCount,
     ringtone, setRingtone
   } = useApp();
@@ -833,8 +834,14 @@ const MainLayout: React.FC = () => {
                     ? 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
                     : 'bg-white border-indigo-100 shadow-sm ring-1 ring-indigo-50/50'
                     }`}
-                  onClick={() => !n.read && markNotificationRead(n.id)}
-                >
+                  onClick={() => {
+                    if (!n.read) markNotificationRead(n.id);
+                    if (n.linkTo) {
+                      setSelectedTaskId(n.linkTo);
+                      setActiveTab('projects');
+                      setIsNotificationOpen(false);
+                    }
+                  }}                >
                   <div className="flex items-start space-x-4">
                     {/* Icon Side */}
                     <div className={`mt-1 p-2.5 rounded-xl shrink-0 ${n.type === NotificationType.MENTION ? 'bg-blue-100 text-blue-600' :

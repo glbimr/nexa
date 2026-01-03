@@ -92,7 +92,7 @@ const TaskCardItem: React.FC<{
     };
   }, [isAssigning, assigningSubtaskId]);
 
-  const { currentUser } = useApp();
+  const { currentUser, triggerNotification } = useApp();
   const hasProjectWrite = currentUser?.role === 'ADMIN' || (currentUser?.projectAccess?.[task.projectId] === 'write');
   // Allow editing for admins or anyone with write OR read access (as per requirements to change state/assignee/comments)
   const hasAccess = currentUser?.role === 'ADMIN' || (currentUser?.projectAccess?.[task.projectId] !== undefined && currentUser?.projectAccess?.[task.projectId] !== 'none');
@@ -110,6 +110,16 @@ const TaskCardItem: React.FC<{
     if (!isEditable) return;
     onUpdateTask({ ...task, assigneeId: userId });
     setIsAssigning(false);
+
+    if (userId && userId !== currentUser?.id) {
+      triggerNotification(
+        userId,
+        NotificationType.ASSIGNMENT,
+        'Task Assigned',
+        `${currentUser?.name} assigned you to "${task.title}"`,
+        task.id
+      );
+    }
   };
 
   const handleSubtaskAssign = (subtaskId: string, userId: string | undefined) => {
@@ -117,8 +127,19 @@ const TaskCardItem: React.FC<{
     const updatedSubtasks = task.subtasks.map(s =>
       s.id === subtaskId ? { ...s, assigneeId: userId } : s
     );
+    const subtask = task.subtasks.find(s => s.id === subtaskId);
     onUpdateTask({ ...task, subtasks: updatedSubtasks });
     setAssigningSubtaskId(null);
+
+    if (userId && userId !== currentUser?.id) {
+      triggerNotification(
+        userId,
+        NotificationType.ASSIGNMENT,
+        'Subtask Assigned',
+        `${currentUser?.name} assigned you to subtask "${subtask?.title || 'Subtask'}" in "${task.title}"`,
+        task.id
+      );
+    }
   };
 
   return (
@@ -597,10 +618,20 @@ const TaskEditor: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (task) {
+      const assigneeChanged = formData.assigneeId !== task.assigneeId;
       updateTask(formData);
+      if (assigneeChanged && formData.assigneeId && formData.assigneeId !== currentUser?.id) {
+        triggerNotification(
+          formData.assigneeId,
+          NotificationType.ASSIGNMENT,
+          'Task Assigned',
+          `${currentUser?.name} assigned you to "${formData.title}"`,
+          formData.id
+        );
+      }
     } else {
       addTask(formData);
-      if (formData.assigneeId) {
+      if (formData.assigneeId && formData.assigneeId !== currentUser?.id) {
         triggerNotification(
           formData.assigneeId,
           NotificationType.ASSIGNMENT,
@@ -644,6 +675,32 @@ const TaskEditor: React.FC<{
     const updatedTask = { ...formData, comments: [...formData.comments, comment] };
     setFormData(updatedTask);
     updateTask(updatedTask); // Auto-save
+
+    // Notify mentioned users
+    const mentionedUsers = users.filter(u => newComment.includes('@' + u.name));
+    mentionedUsers.forEach(u => {
+      if (u.id !== currentUser.id) {
+        triggerNotification(
+          u.id,
+          NotificationType.MENTION,
+          'You were mentioned',
+          `${currentUser.name} mentioned you in task "${formData.title}"`,
+          formData.id
+        );
+      }
+    });
+
+    // Notify assignee if not mentioned and not the sender
+    if (formData.assigneeId && formData.assigneeId !== currentUser.id && !mentionedUsers.some(u => u.id === formData.assigneeId)) {
+      triggerNotification(
+        formData.assigneeId,
+        NotificationType.SYSTEM,
+        'New Comment',
+        `${currentUser.name} commented on "${formData.title}"`,
+        formData.id
+      );
+    }
+
     setNewComment('');
   };
 
@@ -1232,7 +1289,7 @@ const SubtaskEditor: React.FC<{
   onUpdate?: (subtask: SubTask) => void;
   onInstantUpdate?: (subtask: SubTask) => void;
 }> = ({ task, subtask, onClose, readOnly, onUpdate, onInstantUpdate }) => {
-  const { updateTask, users, currentUser } = useApp();
+  const { updateTask, users, currentUser, triggerNotification } = useApp();
   const [formData, setFormData] = useState<SubTask>(subtask);
   const [newComment, setNewComment] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
@@ -1258,11 +1315,22 @@ const SubtaskEditor: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const assigneeChanged = formData.assigneeId !== subtask.assigneeId;
     if (onUpdate) {
       onUpdate(formData);
     } else {
       const updatedSubtasks = task.subtasks.map(s => s.id === formData.id ? formData : s);
       updateTask({ ...task, subtasks: updatedSubtasks });
+    }
+
+    if (assigneeChanged && formData.assigneeId && formData.assigneeId !== currentUser?.id) {
+      triggerNotification(
+        formData.assigneeId,
+        NotificationType.ASSIGNMENT,
+        'Subtask Assigned',
+        `${currentUser?.name} assigned you to subtask "${formData.title}" in "${task.title}"`,
+        task.id
+      );
     }
     onClose();
   };
@@ -1285,7 +1353,34 @@ const SubtaskEditor: React.FC<{
       text: newComment,
       timestamp: Date.now()
     };
-    handleAutoSave({ ...formData, comments: [...formData.comments, comment] });
+    const updatedSub = { ...formData, comments: [...formData.comments, comment] };
+    handleAutoSave(updatedSub);
+
+    // Notify mentioned users
+    const mentionedUsers = users.filter(u => newComment.includes('@' + u.name));
+    mentionedUsers.forEach(u => {
+      if (u.id !== currentUser.id) {
+        triggerNotification(
+          u.id,
+          NotificationType.MENTION,
+          'You were mentioned',
+          `${currentUser.name} mentioned you in subtask "${formData.title}"`,
+          task.id
+        );
+      }
+    });
+
+    // Notify subtask assignee if they exist and aren't mentioned/commenter
+    if (formData.assigneeId && formData.assigneeId !== currentUser.id && !mentionedUsers.some(u => u.id === formData.assigneeId)) {
+      triggerNotification(
+        formData.assigneeId,
+        NotificationType.SYSTEM,
+        'New Comment on Subtask',
+        `${currentUser.name} commented on subtask "${formData.title}"`,
+        task.id
+      );
+    }
+
     setNewComment('');
   };
 
@@ -1748,7 +1843,7 @@ const SubtaskEditor: React.FC<{
 };
 
 export const KanbanBoard: React.FC = () => {
-  const { tasks, users, updateTask, moveTask, currentUser, projects } = useApp();
+  const { tasks, users, updateTask, moveTask, currentUser, projects, selectedTaskId, setSelectedTaskId } = useApp();
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -1767,6 +1862,17 @@ export const KanbanBoard: React.FC = () => {
 
   // Drag State
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedTaskId) {
+      const task = tasks.find(t => t.id === selectedTaskId);
+      if (task) {
+        setEditingTask(task);
+        setIsTaskModalOpen(true);
+        setSelectedTaskId(null);
+      }
+    }
+  }, [selectedTaskId, tasks]);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);

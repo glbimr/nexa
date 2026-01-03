@@ -53,6 +53,8 @@ interface AppContextType {
   triggerNotification: (recipientId: string, type: NotificationType, title: string, message: string, linkTo?: string) => void;
   markNotificationRead: (id: string) => void;
   clearNotifications: () => void;
+  selectedTaskId: string | null;
+  setSelectedTaskId: (id: string | null) => void;
   markChatRead: (chatId: string) => void;
   getUnreadCount: (chatId: string) => number;
   totalUnreadChatCount: number;
@@ -135,6 +137,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRingtoneState(url);
     localStorage.setItem('nexus_pm_ringtone', url);
   };
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // WebRTC Refs - Now using a Map for multiple connections
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -290,7 +294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data: groupData } = await supabase.from('groups').select('*');
       if (groupData) setGroups(groupData.map(mapGroupFromDB));
 
-      const { data: notifData } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false });
+      const { data: notifData } = await supabase.from('notifications').select('*').eq('recipient_id', currentUser!.id).order('timestamp', { ascending: false });
       if (notifData) setNotifications(notifData.map(mapNotificationFromDB));
 
       const { data: meetingData } = await supabase.from('meetings').select('*');
@@ -385,7 +389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (payload.eventType === 'DELETE') setUsers(prev => prev.filter(u => u.id !== payload.old.id));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${currentUser!.id}` }, payload => {
         if (payload.eventType === 'INSERT') setNotifications(prev => [mapNotificationFromDB(payload.new), ...prev]);
         if (payload.eventType === 'UPDATE') setNotifications(prev => prev.map(n => n.id === payload.new.id ? mapNotificationFromDB(payload.new) : n));
       })
@@ -1718,6 +1722,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, updateGroup, deleteGroup, addProject, updateProject, deleteProject,
       triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
+      selectedTaskId, setSelectedTaskId,
       ringtone, setRingtone,
       meetings,
       addMeeting: async (m: Meeting) => {
