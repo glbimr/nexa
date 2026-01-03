@@ -5,6 +5,7 @@ import { Dashboard } from './modules/Dashboard';
 import { KanbanBoard } from './modules/Kanban';
 import { Communication } from './modules/Communication';
 import { AdminPanel } from './modules/AdminPanel';
+import { Calendar as CalendarModule } from './modules/Calendar';
 import { Modal } from './components/Modal';
 import {
   LayoutDashboard,
@@ -37,7 +38,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react';
 
 import { UserRole, NotificationType } from './types';
@@ -187,7 +189,7 @@ const MainLayout: React.FC = () => {
     ringtone, setRingtone
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'chat' | 'admin'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin'>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Avatar Modal State
@@ -367,6 +369,7 @@ const MainLayout: React.FC = () => {
           <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem id="projects" icon={KanbanSquare} label="Projects" />
           <NavItem id="chat" icon={MessageSquare} label="Team Chat" badgeCount={totalUnreadChatCount} />
+          <NavItem id="calendar" icon={Calendar} label="Calendar" />
           {currentUser.role === UserRole.ADMIN && (
             <NavItem id="admin" icon={Settings} label="Admin Panel" />
           )}
@@ -451,6 +454,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'projects' && <KanbanBoard />}
           {activeTab === 'chat' && <Communication />}
+          {activeTab === 'calendar' && <CalendarModule />}
           {activeTab === 'admin' && <AdminPanel />}
         </div>
 
@@ -458,6 +462,7 @@ const MainLayout: React.FC = () => {
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.04)] h-[64px] flex items-center justify-around">
           <BottomNavItem id="dashboard" icon={LayoutDashboard} label="Home" />
           <BottomNavItem id="projects" icon={KanbanSquare} label="Projects" />
+          <BottomNavItem id="calendar" icon={Calendar} label="Schedule" />
           <BottomNavItem id="chat" icon={MessageSquare} label="Chat" badgeCount={totalUnreadChatCount} />
           {currentUser.role === UserRole.ADMIN && (
             <BottomNavItem id="admin" icon={Settings} label="Admin" />

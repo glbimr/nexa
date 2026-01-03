@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { User, Project, Task, ChatMessage, UserRole, TaskStatus, Attachment, Group, ProjectAccessLevel, Notification, NotificationType, IncomingCall, SignalData } from './types';
+import { User, Project, Task, ChatMessage, UserRole, TaskStatus, Attachment, Group, ProjectAccessLevel, Notification, NotificationType, IncomingCall, SignalData, Meeting } from './types';
 import { supabase, fetchMessages } from './supabaseClient';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -69,6 +69,12 @@ interface AppContextType {
   // Preferences
   ringtone: string;
   setRingtone: (url: string) => void;
+
+  // Meetings
+  meetings: Meeting[];
+  addMeeting: (m: Meeting) => Promise<void>;
+  updateMeeting: (m: Meeting) => Promise<void>;
+  deleteMeeting: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -98,6 +104,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
 
   // Call State
@@ -211,6 +218,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     read: n.read,
     linkTo: n.link_to
   });
+  const mapMeetingFromDB = (m: any): Meeting => ({
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    start_time: Number(m.start_time),
+    end_time: Number(m.end_time),
+    creator_id: m.creator_id,
+    participant_ids: m.participant_ids || [],
+    created_at: Number(m.created_at)
+  });
 
   // Keep Refs in sync with state
   useEffect(() => {
@@ -258,6 +275,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const { data: notifData } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false });
       if (notifData) setNotifications(notifData.map(mapNotificationFromDB));
+
+      const { data: meetingData } = await supabase.from('meetings').select('*');
+      if (meetingData) setMeetings(meetingData.map(mapMeetingFromDB));
     };
 
     fetchData();
@@ -359,6 +379,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, payload => {
         if (payload.eventType === 'INSERT') setGroups(prev => [...prev, mapGroupFromDB(payload.new)]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetings' }, payload => {
+        if (payload.eventType === 'INSERT') setMeetings(prev => [...prev, mapMeetingFromDB(payload.new)]);
+        if (payload.eventType === 'UPDATE') setMeetings(prev => prev.map(m => m.id === payload.new.id ? mapMeetingFromDB(payload.new) : m));
+        if (payload.eventType === 'DELETE') setMeetings(prev => prev.filter(m => m.id !== payload.old.id));
       })
       .subscribe();
 
@@ -1676,7 +1701,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, updateGroup, deleteGroup, addProject, updateProject, deleteProject,
       triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
-      ringtone, setRingtone
+      ringtone, setRingtone,
+      meetings,
+      addMeeting: async (m: Meeting) => {
+        const { error } = await supabase.from('meetings').insert({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          start_time: m.start_time,
+          end_time: m.end_time,
+          creator_id: m.creator_id,
+          participant_ids: m.participant_ids
+        });
+        if (error) console.error("Add meeting failed:", error);
+      },
+      updateMeeting: async (m: Meeting) => {
+        const { error } = await supabase.from('meetings').update({
+          title: m.title,
+          description: m.description,
+          start_time: m.start_time,
+          end_time: m.end_time,
+          participant_ids: m.participant_ids
+        }).eq('id', m.id);
+        if (error) console.error("Update meeting failed:", error);
+      },
+      deleteMeeting: async (id: string) => {
+        const { error } = await supabase.from('meetings').delete().eq('id', id);
+        if (error) console.error("Delete meeting failed:", error);
+      }
     }}>
       {children}
     </AppContext.Provider>
