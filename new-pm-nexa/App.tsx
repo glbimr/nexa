@@ -185,7 +185,7 @@ const MainLayout: React.FC = () => {
   const {
     currentUser, logout, updateUser,
     notifications, markNotificationRead, clearNotifications,
-    setSelectedTaskId,
+    setSelectedTaskId, setSelectedCommentId,
     totalUnreadChatCount,
     ringtone, setRingtone
   } = useApp();
@@ -837,7 +837,9 @@ const MainLayout: React.FC = () => {
                   onClick={() => {
                     if (!n.read) markNotificationRead(n.id);
                     if (n.linkTo) {
-                      setSelectedTaskId(n.linkTo);
+                      const [taskId, commentId] = n.linkTo.split('#');
+                      setSelectedTaskId(taskId);
+                      setSelectedCommentId(commentId || null);
                       setActiveTab('projects');
                       setIsNotificationOpen(false);
                     }

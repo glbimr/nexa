@@ -573,7 +573,7 @@ const TaskEditor: React.FC<{
   projectId: string;
   readOnly: boolean;
 }> = ({ task, onClose, projectId, readOnly }) => {
-  const { addTask, updateTask, moveTask, users, triggerNotification, currentUser, deleteUser } = useApp();
+  const { addTask, updateTask, moveTask, users, triggerNotification, currentUser, deleteUser, selectedCommentId, setSelectedCommentId } = useApp();
   const [formData, setFormData] = useState<Task>(task || {
     id: 't-' + Date.now(),
     projectId,
@@ -614,6 +614,23 @@ const TaskEditor: React.FC<{
 
   // Mobile Tabs State
   const [activeTab, setActiveTab] = useState<'details' | 'chatter'>('details');
+
+  useEffect(() => {
+    if (selectedCommentId) {
+      setActiveTab('chatter');
+      setTimeout(() => {
+        const element = document.getElementById(`comment-${selectedCommentId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-2');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-2');
+            setSelectedCommentId(null);
+          }, 4000);
+        }
+      }, 500);
+    }
+  }, [selectedCommentId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -685,7 +702,7 @@ const TaskEditor: React.FC<{
           NotificationType.MENTION,
           'You were mentioned',
           `${currentUser.name} mentioned you in task "${formData.title}"`,
-          formData.id
+          `${formData.id}#${comment.id}`
         );
       }
     });
@@ -697,7 +714,7 @@ const TaskEditor: React.FC<{
         NotificationType.SYSTEM,
         'New Comment',
         `${currentUser.name} commented on "${formData.title}"`,
-        formData.id
+        `${formData.id}#${comment.id}`
       );
     }
 
@@ -979,7 +996,7 @@ const TaskEditor: React.FC<{
                     {[...formData.comments].reverse().map(c => {
                       const u = users.find(user => user.id === c.userId);
                       return (
-                        <div key={c.id} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
+                        <div key={c.id} id={`comment-${c.id}`} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
                           <img src={u?.avatar} className="w-8 h-8 rounded-full border border-slate-200 bg-white" alt={u?.name} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-start">
@@ -1289,7 +1306,7 @@ const SubtaskEditor: React.FC<{
   onUpdate?: (subtask: SubTask) => void;
   onInstantUpdate?: (subtask: SubTask) => void;
 }> = ({ task, subtask, onClose, readOnly, onUpdate, onInstantUpdate }) => {
-  const { updateTask, users, currentUser, triggerNotification } = useApp();
+  const { updateTask, users, currentUser, triggerNotification, selectedCommentId, setSelectedCommentId } = useApp();
   const [formData, setFormData] = useState<SubTask>(subtask);
   const [newComment, setNewComment] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
@@ -1312,6 +1329,23 @@ const SubtaskEditor: React.FC<{
 
   // Mobile Tabs State
   const [activeTab, setActiveTab] = useState<'details' | 'chatter'>('details');
+
+  useEffect(() => {
+    if (selectedCommentId) {
+      setActiveTab('chatter');
+      setTimeout(() => {
+        const element = document.getElementById(`subcomment-${selectedCommentId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-2');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-2');
+            setSelectedCommentId(null);
+          }, 4000);
+        }
+      }, 500);
+    }
+  }, [selectedCommentId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1365,7 +1399,7 @@ const SubtaskEditor: React.FC<{
           NotificationType.MENTION,
           'You were mentioned',
           `${currentUser.name} mentioned you in subtask "${formData.title}"`,
-          task.id
+          `${task.id}#${comment.id}`
         );
       }
     });
@@ -1377,7 +1411,7 @@ const SubtaskEditor: React.FC<{
         NotificationType.SYSTEM,
         'New Comment on Subtask',
         `${currentUser.name} commented on subtask "${formData.title}"`,
-        task.id
+        `${task.id}#${comment.id}`
       );
     }
 
@@ -1652,7 +1686,7 @@ const SubtaskEditor: React.FC<{
                     {[...formData.comments].reverse().map(c => {
                       const u = users.find(user => user.id === c.userId);
                       return (
-                        <div key={c.id} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
+                        <div key={c.id} id={`subcomment-${c.id}`} className="group flex items-start space-x-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all">
                           <img src={u?.avatar} className="w-8 h-8 rounded-full border border-slate-200 bg-white" alt={u?.name} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-start">
@@ -1865,14 +1899,29 @@ export const KanbanBoard: React.FC = () => {
 
   useEffect(() => {
     if (selectedTaskId) {
+      // Find the task
       const task = tasks.find(t => t.id === selectedTaskId);
       if (task) {
+        // If there's a comment ID, check if it's in the task or a subtask
+        if (selectedCommentId) {
+          const isSubtaskComment = task.subtasks.some(s => s.comments.some(c => c.id === selectedCommentId));
+          if (isSubtaskComment) {
+            const subtask = task.subtasks.find(s => s.comments.some(c => c.id === selectedCommentId));
+            if (subtask) {
+              setEditingSubtaskData({ task, subtask });
+              setSelectedTaskId(null);
+              return;
+            }
+          }
+        }
+
+        // Default: Open the task
         setEditingTask(task);
         setIsTaskModalOpen(true);
         setSelectedTaskId(null);
       }
     }
-  }, [selectedTaskId, tasks]);
+  }, [selectedTaskId, selectedCommentId, tasks]);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
