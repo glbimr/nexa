@@ -294,15 +294,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data: groupData } = await supabase.from('groups').select('*');
       if (groupData) setGroups(groupData.map(mapGroupFromDB));
 
-      const { data: notifData } = await supabase.from('notifications').select('*').eq('recipient_id', currentUser!.id).order('timestamp', { ascending: false });
-      if (notifData) setNotifications(notifData.map(mapNotificationFromDB));
+      if (currentUser) {
+        const { data: notifData } = await supabase.from('notifications').select('*').eq('recipient_id', currentUser.id).order('timestamp', { ascending: false });
+        if (notifData) setNotifications(notifData.map(mapNotificationFromDB));
+      }
 
       const { data: meetingData } = await supabase.from('meetings').select('*');
       if (meetingData) setMeetings(meetingData.map(mapMeetingFromDB));
     };
 
     fetchData();
-  }, []);
+  }, [currentUser?.id]); // Re-fetch user-specific data when login state changes
 
   // --- 1.1 Fetch Deleted Messages ---
   useEffect(() => {
@@ -389,10 +391,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (payload.eventType === 'DELETE') setUsers(prev => prev.filter(u => u.id !== payload.old.id));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${currentUser!.id}` }, payload => {
-        if (payload.eventType === 'INSERT') setNotifications(prev => [mapNotificationFromDB(payload.new), ...prev]);
-        if (payload.eventType === 'UPDATE') setNotifications(prev => prev.map(n => n.id === payload.new.id ? mapNotificationFromDB(payload.new) : n));
-      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
         if (payload.eventType === 'INSERT') setProjects(prev => [...prev, mapProjectFromDB(payload.new)]);
         if (payload.eventType === 'UPDATE') setProjects(prev => prev.map(p => p.id === payload.new.id ? mapProjectFromDB(payload.new) : p));
@@ -408,10 +406,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .subscribe();
 
+    const notifSubscription = currentUser ? supabase.channel('notif-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${currentUser.id}` }, payload => {
+        if (payload.eventType === 'INSERT') setNotifications(prev => [mapNotificationFromDB(payload.new), ...prev]);
+        if (payload.eventType === 'UPDATE') setNotifications(prev => prev.map(n => n.id === payload.new.id ? mapNotificationFromDB(payload.new) : n));
+      })
+      .subscribe() : null;
+
     return () => {
       supabase.removeChannel(channel);
+      if (notifSubscription) supabase.removeChannel(notifSubscription);
     };
-  }, []);
+  }, [currentUser?.id]);
 
   // --- 3. WebRTC Signaling & Realtime Presence via Supabase ---
   useEffect(() => {
