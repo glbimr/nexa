@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
-import { UserRole } from '../types';
+import { UserRole, NotificationType, Meeting } from '../types';
 import {
     Calendar as CalendarIcon,
     ChevronLeft,
@@ -14,13 +14,14 @@ import {
     CalendarDays,
     MoreVertical,
     Trash2,
-    CalendarCheck2
+    CalendarCheck2,
+    Pencil,
+    BellRing
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
-import { Meeting } from '../types';
 
 export const Calendar: React.FC = () => {
-    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting } = useApp();
+    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification } = useApp();
 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -41,6 +42,31 @@ export const Calendar: React.FC = () => {
     const [endTime, setEndTime] = useState('10:00');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [searchUser, setSearchUser] = useState('');
+
+    // Reminder State
+    const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
+    const [reminderMeeting, setReminderMeeting] = useState<Meeting | null>(null);
+
+    // Automated 10-minute Reminders
+    React.useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const tenMinutesFromNow = now + (10 * 60 * 1000);
+            const fiftySecondsWindow = 60 * 1000; // Small window to catch the event
+
+            meetings.forEach(m => {
+                // If meeting is starting within 10 minutes (and hasn't happened yet)
+                // and user is a participant or creator
+                const isPart = m.creator_id === currentUser?.id || m.participant_ids.includes(currentUser?.id || '');
+                if (isPart && m.start_time > now && m.start_time <= tenMinutesFromNow && !activeReminders.has(m.id)) {
+                    setReminderMeeting(m);
+                    setActiveReminders(prev => new Set(prev).add(m.id));
+                }
+            });
+        }, 10000); // Check every 10 seconds
+
+        return () => clearInterval(interval);
+    }, [meetings, currentUser, activeReminders]);
 
     // Helper to get days in month
     const daysInMonth = useMemo(() => {
@@ -144,8 +170,28 @@ export const Calendar: React.FC = () => {
 
         if (editingMeetingId) {
             await updateMeeting(meetingData);
+            // Notify participants of update
+            meetingData.participant_ids.forEach(pid => {
+                triggerNotification(
+                    pid,
+                    NotificationType.SYSTEM,
+                    'Meeting Updated',
+                    `The meeting "${meetingData.title}" has been updated.`,
+                    'calendar'
+                );
+            });
         } else {
             await addMeeting(meetingData);
+            // Notify participants of invitation
+            meetingData.participant_ids.forEach(pid => {
+                triggerNotification(
+                    pid,
+                    NotificationType.SYSTEM,
+                    'New Meeting Invitation',
+                    `You have been invited to "${meetingData.title}" by ${currentUser.name}.`,
+                    'calendar'
+                );
+            });
         }
 
         setIsModalOpen(false);
@@ -276,6 +322,7 @@ export const Calendar: React.FC = () => {
                                                                         onClick={() => handleEditMeeting(m)}
                                                                         className="w-full px-3 py-1.5 text-left hover:bg-slate-50 text-indigo-600 flex items-center space-x-2"
                                                                     >
+                                                                        <Pencil size={12} />
                                                                         <span>Edit</span>
                                                                     </button>
                                                                     <button
@@ -520,7 +567,7 @@ export const Calendar: React.FC = () => {
                                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-100"
                                         title="Edit Meeting"
                                     >
-                                        <CalendarCheck2 size={18} />
+                                        <Pencil size={18} />
                                     </button>
                                     <button
                                         onClick={() => { deleteMeeting(viewingMeeting.id); setViewingMeeting(null); }}
@@ -649,6 +696,44 @@ export const Calendar: React.FC = () => {
                             <Plus size={18} />
                             <span>Add Meeting for this Day</span>
                         </button>
+                    </div>
+                )}
+            </Modal>
+
+            {/* automated 10-minute Reminder Modal */}
+            <Modal
+                isOpen={!!reminderMeeting}
+                onClose={() => setReminderMeeting(null)}
+                title="Upcoming Meeting Reminder"
+                maxWidth="max-w-md"
+            >
+                {reminderMeeting && (
+                    <div className="p-6 text-center space-y-6">
+                        <div className="mx-auto w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center animate-bounce shadow-inner">
+                            <BellRing size={32} />
+                        </div>
+
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-bold text-slate-800">Meeting Starting Soon!</h3>
+                            <p className="text-sm text-slate-500">
+                                <span className="font-bold text-indigo-600">"{reminderMeeting.title}"</span> starts in less than 10 minutes at {new Date(reminderMeeting.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
+                            </p>
+                        </div>
+
+                        <div className="flex space-x-3">
+                            <button
+                                onClick={() => setReminderMeeting(null)}
+                                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all text-sm"
+                            >
+                                Dismiss
+                            </button>
+                            <button
+                                onClick={() => { setViewingMeeting(reminderMeeting); setReminderMeeting(null); }}
+                                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-100 text-sm"
+                            >
+                                View Details
+                            </button>
+                        </div>
                     </div>
                 )}
             </Modal>
