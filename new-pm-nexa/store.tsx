@@ -153,6 +153,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const prevCameraWasOnRef = useRef<boolean>(false);
   const prevCameraStreamRef = useRef<MediaStream | null>(null);
   const usersRef = useRef(users);
+  const currentUserRef = useRef(currentUser);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   // IDs of users currently active (via Supabase Presence)
   const [presentIds, setPresentIds] = useState<Set<string>>(new Set());
@@ -161,6 +166,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     presentIdsRef.current = presentIds;
   }, [presentIds]);
+
+  // Sync Users with Presence IDs
+  useEffect(() => {
+    setUsers(prev => prev.map(u => ({
+      ...u,
+      isOnline: presentIds.has(u.id)
+    })));
+  }, [presentIds]);
+
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // Map of ChatID -> Timestamp when current user last read it
   const [lastReadTimestamps, setLastReadTimestamps] = useState<Record<string, number>>({});
@@ -407,10 +424,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     signalingChannelRef.current = channel;
 
     const updatePresence = async () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && currentUserRef.current) {
         await channel.track({
-          user_id: currentUser.id,
-          name: currentUser.name,
+          user_id: currentUserRef.current.id,
+          name: currentUserRef.current.name,
           online_at: new Date().toISOString(),
         });
       } else {
@@ -590,7 +607,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.removeEventListener('visibilitychange', onVisibilityChange);
       if (signalingChannelRef.current) supabase.removeChannel(signalingChannelRef.current);
     };
-  }, [currentUser]); // DEPENDENCY REDUCED: No longer depends on isInCall or activeCallData
+  }, [currentUser?.id]); // DEPENDENCY NARROWED: Only re-run if ID changes (login/logout)
 
 
   const sendSignal = async (type: SignalData['type'], recipientId: string | undefined, payload: any) => {
