@@ -1877,7 +1877,7 @@ const SubtaskEditor: React.FC<{
 };
 
 export const KanbanBoard: React.FC = () => {
-  const { tasks, users, updateTask, moveTask, currentUser, projects, selectedTaskId, setSelectedTaskId } = useApp();
+  const { tasks, users, updateTask, moveTask, currentUser, projects, selectedTaskId, setSelectedTaskId, selectedCommentId, setSelectedCommentId } = useApp();
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [searchTerm, setSearchTerm] = useState('');
 
