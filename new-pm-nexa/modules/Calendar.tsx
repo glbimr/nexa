@@ -28,6 +28,7 @@ export const Calendar: React.FC = () => {
 
     // View/Edit State
     const [viewingMeeting, setViewingMeeting] = useState<Meeting | null>(null);
+    const [viewingDayDetails, setViewingDayDetails] = useState<{ day: number, month: number, year: number } | null>(null);
     const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -225,7 +226,8 @@ export const Calendar: React.FC = () => {
                             return (
                                 <div
                                     key={i}
-                                    className={`min-h-[120px] p-2 border-r border-b border-slate-100 bg-white transition-colors hover:bg-slate-50/50 group ${!d.currentMonth ? 'bg-slate-50/30' : ''}`}
+                                    className={`min-h-[120px] p-2 border-r border-b border-slate-100 bg-white transition-colors hover:bg-slate-50/50 group cursor-pointer ${!d.currentMonth ? 'bg-slate-50/30' : ''}`}
+                                    onClick={() => setViewingDayDetails({ day: d.day, month: d.month, year: d.year })}
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className={`
@@ -577,6 +579,72 @@ export const Calendar: React.FC = () => {
                             className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-lg text-sm"
                         >
                             Close
+                        </button>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Expanded Day View Modal */}
+            <Modal
+                isOpen={!!viewingDayDetails}
+                onClose={() => setViewingDayDetails(null)}
+                title={viewingDayDetails ? `${new Date(viewingDayDetails.year, viewingDayDetails.month, viewingDayDetails.day).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}` : 'Day Schedule'}
+                maxWidth="max-w-md"
+            >
+                {viewingDayDetails && (
+                    <div className="p-6 space-y-4">
+                        <div className="space-y-3">
+                            {(() => {
+                                const dayMeetings = getMeetingsForDay(viewingDayDetails.day, viewingDayDetails.month, viewingDayDetails.year);
+                                if (dayMeetings.length === 0) {
+                                    return (
+                                        <div className="py-12 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                                            <CalendarDays className="mx-auto text-slate-300 mb-2" size={32} />
+                                            <p className="text-slate-400 text-sm font-medium">No meetings scheduled for this day</p>
+                                        </div>
+                                    );
+                                }
+                                return dayMeetings.map(m => (
+                                    <div
+                                        key={m.id}
+                                        onClick={() => { setViewingMeeting(m); setViewingDayDetails(null); }}
+                                        className="group p-4 bg-white border border-slate-100 rounded-2xl hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+                                    >
+                                        <div className="flex items-center space-x-4 min-w-0">
+                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex flex-col items-center justify-center shrink-0">
+                                                <Clock size={16} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-bold text-slate-800 truncate">{m.title}</h4>
+                                                <p className="text-xs text-slate-500 font-medium">
+                                                    {new Date(m.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(m.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-600 transition-colors" />
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                const newDateStr = `${viewingDayDetails.year}-${String(viewingDayDetails.month + 1).padStart(2, '0')}-${String(viewingDayDetails.day).padStart(2, '0')}`;
+                                setMeetingDate(newDateStr);
+                                setViewingDayDetails(null);
+                                setEditingMeetingId(null);
+                                setTitle('');
+                                setDescription('');
+                                setStartTime('09:00');
+                                setEndTime('10:00');
+                                setSelectedUserIds([]);
+                                setModalPage('details');
+                                setIsModalOpen(true);
+                            }}
+                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-100 text-sm flex items-center justify-center space-x-2"
+                        >
+                            <Plus size={18} />
+                            <span>Add Meeting for this Day</span>
                         </button>
                     </div>
                 )}
