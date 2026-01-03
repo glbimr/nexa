@@ -55,8 +55,6 @@ interface AppContextType {
   clearNotifications: () => void;
   selectedTaskId: string | null;
   setSelectedTaskId: (id: string | null) => void;
-  selectedCommentId: string | null;
-  setSelectedCommentId: (id: string | null) => void;
   markChatRead: (chatId: string) => void;
   getUnreadCount: (chatId: string) => number;
   totalUnreadChatCount: number;
@@ -141,7 +139,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
 
   // WebRTC Refs - Now using a Map for multiple connections
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -1726,7 +1723,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
       selectedTaskId, setSelectedTaskId,
-      selectedCommentId, setSelectedCommentId,
       ringtone, setRingtone,
       meetings,
       addMeeting: async (m: Meeting) => {
