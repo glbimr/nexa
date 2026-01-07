@@ -47,10 +47,11 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: 'w4', type: 'card', title: 'My Pending', icon: 'circle', colorTheme: 'slate', filter: { status: TaskStatus.TODO, priority: 'all', category: 'all', assignee: 'me' } },
   { id: 'w5', type: 'chart', title: 'My Task Status', chartType: 'pie', groupBy: 'status', filter: { status: 'all', priority: 'all', category: 'all', assignee: 'me' } },
   { id: 'w6', type: 'chart', title: 'My Priority Breakdown', chartType: 'bar', groupBy: 'priority', filter: { status: 'all', priority: 'all', category: 'all', assignee: 'me' } },
+  { id: 'w7', type: 'list', title: 'My Upcoming Tasks', icon: 'list', colorTheme: 'blue', filter: { status: TaskStatus.TODO, priority: 'all', category: 'all', assignee: 'me' } },
 ];
 
 export const Dashboard: React.FC = () => {
-  const { tasks, currentUser, users, updateUser } = useApp();
+  const { tasks, currentUser, users, updateUser, setSelectedTaskId, setActiveTab } = useApp();
 
   // State initialization from current user config or defaults
   const [widgets, setWidgets] = useState<DashboardWidget[]>(
@@ -158,6 +159,28 @@ export const Dashboard: React.FC = () => {
     }));
   };
 
+
+
+  const calculateListTasks = (filter: WidgetFilter | undefined) => {
+    if (!filter) return [];
+    return tasks.filter(t => {
+      if (currentUser?.role !== 'ADMIN') {
+        const accessLevel = currentUser?.projectAccess?.[t.projectId] || 'none';
+        if (accessLevel === 'none') return false;
+      }
+      if (filter.status !== 'all' && t.status !== filter.status) return false;
+      if (filter.priority !== 'all' && t.priority !== filter.priority) return false;
+      if (filter.category !== 'all' && t.category !== filter.category) return false;
+      if (filter.assignee === 'me' && t.assigneeId !== currentUser?.id) return false;
+      return true;
+    }).sort((a, b) => b.createdAt - a.createdAt).slice(0, 5); // Limit to top 5
+  };
+
+  const handleTaskClick = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setActiveTab('projects');
+  };
+
   const handleAddWidget = () => {
     const newId = 'w-' + Date.now();
     const widget: DashboardWidget = {
@@ -167,6 +190,11 @@ export const Dashboard: React.FC = () => {
     };
 
     if (newWidgetType === 'card') {
+      widget.icon = newWidgetIcon;
+      widget.colorTheme = newWidgetTheme;
+      widget.filter = newWidgetFilter;
+
+    } else if (newWidgetType === 'list') {
       widget.icon = newWidgetIcon;
       widget.colorTheme = newWidgetTheme;
       widget.filter = newWidgetFilter;
@@ -198,6 +226,7 @@ export const Dashboard: React.FC = () => {
 
   const cards = widgets.filter(w => w.type === 'card');
   const charts = widgets.filter(w => w.type === 'chart');
+  const lists = widgets.filter(w => w.type === 'list');
 
   return (
     <div className="p-6 space-y-6 animate-in fade-in duration-500 pb-24 md:pb-6">
@@ -343,6 +372,79 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
+      {/* Task Lists Grid */}
+      {lists.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {lists.map(widget => {
+            const listTasks = calculateListTasks(widget.filter);
+            const Icon = ICON_MAP[widget.icon || 'list'];
+            const theme = THEME_CLASSES[widget.colorTheme || 'blue'];
+
+            return (
+              <div key={widget.id} className="relative group bg-white p-6 rounded-xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-3 duration-500">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className={`p-2 rounded-lg ${theme.bg} ${theme.text}`}>
+                    <Icon size={20} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-800">{widget.title}</h3>
+                </div>
+
+                <div className="space-y-3">
+                  {listTasks.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-sm">No tasks found matching filter.</div>
+                  ) : (
+                    listTasks.map(task => (
+                      <div
+                        key={task.id}
+                        onClick={() => handleTaskClick(task.id)}
+                        className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors group/task"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${task.priority === 'high' ? 'bg-red-500' :
+                            task.priority === 'medium' ? 'bg-orange-500' : 'bg-green-500'
+                            }`} />
+                          <span className="text-sm font-medium text-slate-700 truncate">{task.title}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-xs text-slate-400">
+                          <span className="group-hover/task:text-indigo-600 transition-colors">
+                            {new Date(task.createdAt).toLocaleDateString()}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${task.status === TaskStatus.DONE ? 'bg-green-100 text-green-700' :
+                            task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-100 text-blue-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>
+                            {task.status === TaskStatus.IN_PROGRESS ? 'In Progress' : task.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {isEditMode && (
+                  <button
+                    onClick={() => removeWidget(widget.id)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          {isEditMode && (
+            <button
+              onClick={() => { setNewWidgetType('list'); setIsAddModalOpen(true); }}
+              className="border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all min-h-[200px]"
+            >
+              <ListTodo size={48} className="mb-4 opacity-50" />
+              <span className="text-lg font-medium">Add Task List</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Add Widget Modal */}
       <Modal
         isOpen={isAddModalOpen}
@@ -352,22 +454,30 @@ export const Dashboard: React.FC = () => {
       >
         <div className="space-y-6 p-6">
           {/* Widget Type Selection */}
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-3 gap-4">
             <button
               onClick={() => setNewWidgetType('card')}
-              className={`p-6 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'card' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
+              className={`p-4 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'card' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
             >
-              <Layout size={40} className="mb-3" />
-              <span className="font-bold text-lg">Metric Card</span>
-              <span className="text-xs text-slate-500 mt-1 font-normal">Display single key metrics</span>
+              <Layout size={32} className="mb-2" />
+              <span className="font-bold text-sm">Metric Card</span>
+              <span className="text-[10px] text-slate-500 mt-1 font-normal text-center">Key numbers</span>
             </button>
             <button
               onClick={() => setNewWidgetType('chart')}
-              className={`p-6 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'chart' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
+              className={`p-4 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'chart' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
             >
-              <BarChart3 size={40} className="mb-3" />
-              <span className="font-bold text-lg">Chart</span>
-              <span className="text-xs text-slate-500 mt-1 font-normal">Visualize trends and data</span>
+              <BarChart3 size={32} className="mb-2" />
+              <span className="font-bold text-sm">Chart</span>
+              <span className="text-[10px] text-slate-500 mt-1 font-normal text-center">Visual trends</span>
+            </button>
+            <button
+              onClick={() => setNewWidgetType('list')}
+              className={`p-4 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'list' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
+            >
+              <ListTodo size={32} className="mb-2" />
+              <span className="font-bold text-sm">Task List</span>
+              <span className="text-[10px] text-slate-500 mt-1 font-normal text-center">Interactive list</span>
             </button>
           </div>
 
@@ -383,8 +493,8 @@ export const Dashboard: React.FC = () => {
             />
           </div>
 
-          {newWidgetType === 'card' ? (
-            // Card Specific Options
+          {newWidgetType === 'card' || newWidgetType === 'list' ? (
+            // Card & List Specific Options
             <div className="space-y-4 animate-in fade-in">
               <div className="grid grid-cols-2 gap-4">
                 <div>

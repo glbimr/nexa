@@ -58,6 +58,8 @@ interface AppContextType {
   markChatRead: (chatId: string) => void;
   getUnreadCount: (chatId: string) => number;
   totalUnreadChatCount: number;
+  activeTab: 'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin';
+  setActiveTab: (tab: 'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin') => void;
 
   // Call Logic
   startCall: (recipientId: string) => Promise<void>;
@@ -139,6 +141,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  const [activeTab, setActiveTabState] = useState<'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin'>('dashboard');
+
+  const setActiveTab = (tab: 'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin') => {
+    setActiveTabState(tab);
+  };
 
   // WebRTC Refs - Now using a Map for multiple connections
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -640,17 +648,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
   };
-
-  // --- Actions ---
-
-  // ... (keeping lines 538-1326 unchanged implicitly, but since we are replacing a block, we focus on the functions we need to change)
-  // Wait, I cannot skip lines in replace_file_content if they are in the range. 
-  // I must check where SCREEN_STOPPED is (lines ~477-490) and where the screen share functions are (lines ~1327-1463).
-  // These are far apart. I should use MULTI_REPLACE.
-
-  // Let me switch to multi_replace_file_content to handle these disparate blocks cleanly.
-  // Cancelling this tool call and switching strategies.
-
 
   // --- Actions ---
 
@@ -1726,9 +1723,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStream, remoteStreams, isScreenSharing, isMicOn, isCameraOn, hasAudioDevice, hasVideoDevice,
       deletedMessageIds, clearChatHistory,
       login, logout, addUser, updateUser, deleteUser, addTask, updateTask, deleteTask, moveTask, addMessage, createGroup, updateGroup, deleteGroup, addProject, updateProject, deleteProject,
-      triggerNotification, markNotificationRead, clearNotifications, markChatRead, getUnreadCount, totalUnreadChatCount,
-      startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
+      triggerNotification, markNotificationRead, clearNotifications,
       selectedTaskId, setSelectedTaskId,
+      markChatRead, getUnreadCount, totalUnreadChatCount,
+      activeTab, setActiveTab,
+      startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
       ringtone, setRingtone,
       meetings,
       addMeeting: async (m: Meeting) => {

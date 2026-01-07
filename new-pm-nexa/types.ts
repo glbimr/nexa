@@ -6,7 +6,7 @@ export enum UserRole {
 
 export type ProjectAccessLevel = 'read' | 'write' | 'none';
 
-export type WidgetType = 'card' | 'chart';
+export type WidgetType = 'card' | 'chart' | 'list';
 export type ChartType = 'pie' | 'bar';
 export type GroupBy = 'status' | 'priority' | 'category' | 'assignee';
 export type ColorTheme = 'blue' | 'green' | 'red' | 'orange' | 'purple' | 'indigo' | 'slate';

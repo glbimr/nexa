@@ -187,10 +187,10 @@ const MainLayout: React.FC = () => {
     notifications, markNotificationRead, clearNotifications,
     setSelectedTaskId,
     totalUnreadChatCount,
-    ringtone, setRingtone
+    ringtone, setRingtone,
+    activeTab, setActiveTab
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin'>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Avatar Modal State
