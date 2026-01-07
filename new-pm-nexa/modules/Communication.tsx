@@ -645,7 +645,7 @@ export const Communication: React.FC = () => {
                       {!hasVideo && (
                         <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-800 z-10">
                           <img src={user?.avatar} className="w-8 h-8 rounded-full opacity-50 mb-1" />
-                          <span className="text-[10px] text-slate-400">Connected</span>
+                          <span className="text-[10px] text-slate-400">{stream ? 'Connected' : 'Calling...'}</span>
                         </div>
                       )}
 
