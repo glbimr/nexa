@@ -338,23 +338,26 @@ export const Dashboard: React.FC = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         title="Add Dashboard Widget"
+        maxWidth="max-w-2xl"
       >
-        <div className="space-y-6">
+        <div className="space-y-6 p-6">
           {/* Widget Type Selection */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <button
               onClick={() => setNewWidgetType('card')}
-              className={`p-4 rounded-xl border-2 flex flex-col items-center transition-all ${newWidgetType === 'card' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 hover:border-slate-300'}`}
+              className={`p-6 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'card' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
             >
-              <Layout size={32} className="mb-2" />
-              <span className="font-semibold text-sm">Metric Card</span>
+              <Layout size={40} className="mb-3" />
+              <span className="font-bold text-lg">Metric Card</span>
+              <span className="text-xs text-slate-500 mt-1 font-normal">Display single key metrics</span>
             </button>
             <button
               onClick={() => setNewWidgetType('chart')}
-              className={`p-4 rounded-xl border-2 flex flex-col items-center transition-all ${newWidgetType === 'chart' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 hover:border-slate-300'}`}
+              className={`p-6 h-40 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${newWidgetType === 'chart' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}
             >
-              <BarChart3 size={32} className="mb-2" />
-              <span className="font-semibold text-sm">Chart</span>
+              <BarChart3 size={40} className="mb-3" />
+              <span className="font-bold text-lg">Chart</span>
+              <span className="text-xs text-slate-500 mt-1 font-normal">Visualize trends and data</span>
             </button>
           </div>
 
