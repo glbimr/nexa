@@ -552,7 +552,16 @@ export const Communication: React.FC = () => {
                       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900">
                         <img src={spotlightUser?.avatar} className="w-24 h-24 rounded-full border-4 border-slate-700 opacity-50 mb-4 animate-pulse" />
                         <span className="text-slate-400 text-lg">{spotlightUser?.name}</span>
-                        <span className="text-slate-500 text-sm mt-2 flex items-center"><Mic size={14} className="mr-1" /> Audio Only</span>
+                        {spotlightStream ? (
+                          <span className="text-slate-500 text-sm mt-2 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <Mic size={14} /> Connected | Audio Only
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-sm mt-2 flex items-center gap-2">
+                            <Phone size={14} className="animate-pulse" /> Calling...
+                          </span>
+                        )}
                       </div>
                     )}
 
