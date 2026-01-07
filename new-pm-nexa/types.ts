@@ -15,6 +15,7 @@ export interface WidgetFilter {
   status?: TaskStatus | 'all';
   priority?: string | 'all';
   category?: TaskCategory | 'all';
+  assignee?: 'all' | 'me';
 }
 
 export interface DashboardWidget {

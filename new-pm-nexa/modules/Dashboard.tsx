@@ -41,12 +41,12 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 // --- Default Configuration ---
 const DEFAULT_WIDGETS: DashboardWidget[] = [
-  { id: 'w1', type: 'card', title: 'Total Tasks', icon: 'list', colorTheme: 'indigo', filter: { status: 'all', priority: 'all', category: 'all' } },
-  { id: 'w2', type: 'card', title: 'In Progress', icon: 'clock', colorTheme: 'blue', filter: { status: TaskStatus.IN_PROGRESS, priority: 'all', category: 'all' } },
-  { id: 'w3', type: 'card', title: 'Completed', icon: 'check', colorTheme: 'green', filter: { status: TaskStatus.DONE, priority: 'all', category: 'all' } },
-  { id: 'w4', type: 'card', title: 'Pending', icon: 'circle', colorTheme: 'slate', filter: { status: TaskStatus.TODO, priority: 'all', category: 'all' } },
-  { id: 'w5', type: 'chart', title: 'Task Status Distribution', chartType: 'pie', groupBy: 'status' },
-  { id: 'w6', type: 'chart', title: 'Tasks by Priority', chartType: 'bar', groupBy: 'priority' },
+  { id: 'w1', type: 'card', title: 'My Total Tasks', icon: 'list', colorTheme: 'indigo', filter: { status: 'all', priority: 'all', category: 'all', assignee: 'me' } },
+  { id: 'w2', type: 'card', title: 'My In Progress', icon: 'clock', colorTheme: 'blue', filter: { status: TaskStatus.IN_PROGRESS, priority: 'all', category: 'all', assignee: 'me' } },
+  { id: 'w3', type: 'card', title: 'My Completed', icon: 'check', colorTheme: 'green', filter: { status: TaskStatus.DONE, priority: 'all', category: 'all', assignee: 'me' } },
+  { id: 'w4', type: 'card', title: 'My Pending', icon: 'circle', colorTheme: 'slate', filter: { status: TaskStatus.TODO, priority: 'all', category: 'all', assignee: 'me' } },
+  { id: 'w5', type: 'chart', title: 'My Task Status', chartType: 'pie', groupBy: 'status', filter: { status: 'all', priority: 'all', category: 'all', assignee: 'me' } },
+  { id: 'w6', type: 'chart', title: 'My Priority Breakdown', chartType: 'bar', groupBy: 'priority', filter: { status: 'all', priority: 'all', category: 'all', assignee: 'me' } },
 ];
 
 export const Dashboard: React.FC = () => {
@@ -67,7 +67,7 @@ export const Dashboard: React.FC = () => {
   // Card Form
   const [newWidgetIcon, setNewWidgetIcon] = useState('list');
   const [newWidgetTheme, setNewWidgetTheme] = useState<ColorTheme>('blue');
-  const [newWidgetFilter, setNewWidgetFilter] = useState<WidgetFilter>({ status: 'all', priority: 'all', category: 'all' });
+  const [newWidgetFilter, setNewWidgetFilter] = useState<WidgetFilter>({ status: 'all', priority: 'all', category: 'all', assignee: 'me' });
 
   // Chart Form
   const [newChartType, setNewChartType] = useState<ChartType>('pie');
@@ -105,11 +105,12 @@ export const Dashboard: React.FC = () => {
       if (filter.status !== 'all' && t.status !== filter.status) return false;
       if (filter.priority !== 'all' && t.priority !== filter.priority) return false;
       if (filter.category !== 'all' && t.category !== filter.category) return false;
+      if (filter.assignee === 'me' && t.assigneeId !== currentUser?.id) return false;
       return true;
     }).length;
   };
 
-  const calculateChartData = (groupBy: GroupBy | undefined) => {
+  const calculateChartData = (groupBy: GroupBy | undefined, filter?: WidgetFilter) => {
     if (!groupBy) return [];
     const counts: Record<string, number> = {};
 
@@ -118,6 +119,14 @@ export const Dashboard: React.FC = () => {
       if (currentUser?.role !== 'ADMIN') {
         const accessLevel = currentUser?.projectAccess?.[t.projectId] || 'none';
         if (accessLevel === 'none') return;
+      }
+
+      // Filter Logic for Charts
+      if (filter) {
+        if (filter.status !== 'all' && t.status !== filter.status) return;
+        if (filter.priority !== 'all' && t.priority !== filter.priority) return;
+        if (filter.category !== 'all' && t.category !== filter.category) return;
+        if (filter.assignee === 'me' && t.assigneeId !== currentUser?.id) return;
       }
 
       let key = 'Unknown';
@@ -164,6 +173,7 @@ export const Dashboard: React.FC = () => {
     } else {
       widget.chartType = newChartType;
       widget.groupBy = newChartGroup;
+      widget.filter = newWidgetFilter; // Also apply filters to charts
     }
 
     const updatedWidgets = [...widgets, widget];
@@ -183,7 +193,7 @@ export const Dashboard: React.FC = () => {
 
   const resetForm = () => {
     setNewWidgetTitle('');
-    setNewWidgetFilter({ status: 'all', priority: 'all', category: 'all' });
+    setNewWidgetFilter({ status: 'all', priority: 'all', category: 'all', assignee: 'me' });
   };
 
   const cards = widgets.filter(w => w.type === 'card');
@@ -271,7 +281,7 @@ export const Dashboard: React.FC = () => {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {charts.map(widget => {
-          const data = calculateChartData(widget.groupBy);
+          const data = calculateChartData(widget.groupBy, widget.filter);
           return (
             <div key={widget.id} className="relative group bg-white p-6 rounded-xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-2 duration-500">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">{widget.title}</h3>
@@ -453,6 +463,18 @@ export const Dashboard: React.FC = () => {
                     <option value={TaskCategory.STORY}>Story</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Assignee</label>
+                  <select
+                    value={newWidgetFilter.assignee || 'all'}
+                    onChange={e => setNewWidgetFilter({ ...newWidgetFilter, assignee: e.target.value as any })}
+                    className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm outline-none"
+                  >
+                    <option value="all">All Users</option>
+                    <option value="me">Assigned to Me</option>
+                  </select>
+                </div>
               </div>
             </div>
           ) : (
@@ -490,6 +512,37 @@ export const Dashboard: React.FC = () => {
                   <option value="category">Task Category</option>
                   <option value="assignee">Assignee</option>
                 </select>
+              </div>
+
+              {/* Chart Filters reuse */}
+              <div className="pt-2 border-t border-slate-100">
+                <h4 className="text-sm font-bold text-slate-700 uppercase mb-3">Filters</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Status</label>
+                    <select
+                      value={newWidgetFilter.status}
+                      onChange={e => setNewWidgetFilter({ ...newWidgetFilter, status: e.target.value as any })}
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm outline-none"
+                    >
+                      <option value="all">All</option>
+                      <option value={TaskStatus.TODO}>To Do</option>
+                      <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
+                      <option value={TaskStatus.DONE}>Done</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Assignee</label>
+                    <select
+                      value={newWidgetFilter.assignee || 'all'}
+                      onChange={e => setNewWidgetFilter({ ...newWidgetFilter, assignee: e.target.value as any })}
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm outline-none"
+                    >
+                      <option value="all">All Users</option>
+                      <option value="me">Assigned to Me</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           )}
