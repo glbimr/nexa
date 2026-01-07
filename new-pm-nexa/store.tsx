@@ -508,7 +508,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           case 'ANSWER':
             {
               // Mark this sender as having connected (they picked up)
+              console.log("[Call] Answer received from:", senderId); // Debug
               connectedParticipantsRef.current.add(senderId);
+              if (signalPayload && (signalPayload as any).senderId) {
+                connectedParticipantsRef.current.add((signalPayload as any).senderId);
+              }
 
               const pc = peerConnectionsRef.current.get(senderId);
               if (pc) {
