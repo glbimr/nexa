@@ -1539,6 +1539,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       catch (e) { console.error("Could not access microphone"); return; }
       setLocalStream(stream);
+      // Update refs immediately for safety
+      localStreamRef.current = stream;
+      if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
 
       const pc = createPeerConnection(incomingCall.callerId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -1553,6 +1556,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsInCall(true);
       setActiveCallData({ participantIds: [incomingCall.callerId] });
       setIncomingCall(null);
+
+      // Safety: Force a sanity check renegotiation/update after a short delay
+      // This helps if the initial audio track wasn't fully attached or recognized by the other end
+      // mimicking the "toggle mic" fix the user observed.
+      setTimeout(() => {
+        if (localStreamRef.current) renegotiate();
+      }, 1000);
 
       // Process Queued Offers (Mesh scenarios where invites arrived simultaneously)
       if (pendingOffersRef.current.size > 0) {
@@ -1854,11 +1864,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsScreenSharing(true);
         composeLocalStream();
 
-        // Only renegotiate if we ADDED a track (topology change)
-        // replaceTrack does not require renegotiation and skipping it prevents "glitch/blink"
-        if (negotiationNeeded) {
-          await renegotiate();
-        }
+        // Force renegotiation to ensure consistent state for all peers (especially in mesh)
+        // This ensures late joiners or peers with varying states get the correct video track info
+        await renegotiate();
 
         try { await sendSignal('SCREEN_STARTED', undefined, {}); } catch (e) { /* non-fatal */ }
       } catch (err: any) { console.error('Error starting screen share:', err); }
