@@ -1272,7 +1272,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const renegotiate = async () => {
-    if (!localStream) return;
+    // Use Ref to ensure we have the latest stream even if state closure is stale
+    const currentLocalStream = localStreamRef.current || localStream;
+    if (!currentLocalStream) return;
     for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
       try {
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
@@ -1445,6 +1447,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       setLocalStream(stream);
+      // Update refs
+      localStreamRef.current = stream;
+      if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
     }
 
     setIsInCall(true);
@@ -1489,7 +1494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      let stream = localStream;
+      let stream = localStreamRef.current || localStream;
 
       // Ensure we have a stream
       if (!stream) {
@@ -1504,7 +1509,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           // Start Muted
           stream.getAudioTracks().forEach(t => t.enabled = false);
+          stream.getAudioTracks().forEach(t => t.enabled = false);
           setLocalStream(stream);
+          // Update refs
+          localStreamRef.current = stream;
+          if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
           setIsMicOn(false);
         }
         catch (e) { console.error("No audio device found"); return; }
