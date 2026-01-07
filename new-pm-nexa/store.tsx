@@ -506,6 +506,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           case 'ANSWER':
             {
+              // Mark this sender as having connected (they picked up)
+              connectedParticipantsRef.current.add(senderId);
+
               const pc = peerConnectionsRef.current.get(senderId);
               if (pc) {
                 await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
