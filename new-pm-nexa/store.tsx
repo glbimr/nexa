@@ -1203,7 +1203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!localStream) return;
     for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
       try {
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
         sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
       } catch (e) {
@@ -1382,7 +1382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const pc = createPeerConnection(recipientId);
         stream!.getTracks().forEach(track => pc.addTrack(track, stream!));
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
         sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
       } catch (e) {
@@ -1423,7 +1423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pc = createPeerConnection(recipientId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream!));
 
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
       sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
     } catch (err) { console.error("Error initiating connection:", err); }

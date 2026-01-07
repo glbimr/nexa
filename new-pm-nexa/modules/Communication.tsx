@@ -1650,6 +1650,10 @@ const RemoteVideoPlayer: React.FC<{ stream: MediaStream; isMainStage?: boolean }
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      // Force unmuted and max volume to ensure audio plays
+      videoRef.current.muted = false;
+      videoRef.current.volume = 1.0;
+
       // Explicitly call play to ensure audio/video starts
       const playPromise = videoRef.current.play();
 
