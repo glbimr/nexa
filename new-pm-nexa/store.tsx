@@ -480,22 +480,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           case 'USER_ONLINE':
             break;
 
-          case 'OFFER':
-            // If busy and not part of the current call (renegotiation), ignore
-            if (currentIsInCall && !currentActiveCallData?.participantIds.includes(senderId)) return;
+          case 'ADD_TO_CALL':
+            // "Host" told us to connect to a new peer needed for the mesh
+            if (currentIsInCall && signalPayload.targetId) {
+              await initiateCallConnection(signalPayload.targetId, true);
+              setActiveCallData(prev => {
+                if (!prev) return null;
+                if (prev.participantIds.includes(signalPayload.targetId)) return prev;
+                return { ...prev, participantIds: [...prev.participantIds, signalPayload.targetId] };
+              });
+            }
+            break;
 
-            if (currentIsInCall && currentActiveCallData?.participantIds.includes(senderId)) {
-              // Renegotiation handling
-              const pc = peerConnectionsRef.current.get(senderId);
+          case 'OFFER':
+            // Multi-user Mesh Logic:
+            // If we are already in a call, we accept ANY valid Offer as a new participant (or renegotiation)
+            if (currentIsInCall) {
+              let pc = peerConnectionsRef.current.get(senderId);
+
+              // If PC exists -> Renegotiation
+              // If PC does not exist -> New Mesh Peer joining our ongoing call
+              if (!pc) {
+                // Determine our local stream to add
+                let stream = localStreamRef.current;
+                if (!stream && localAudioStreamRef.current) stream = localAudioStreamRef.current; // Fallback
+
+                // Create new PC
+                pc = createPeerConnection(senderId);
+                if (stream) {
+                  stream.getTracks().forEach(track => pc!.addTrack(track, stream!));
+                }
+
+                // Update our participant list
+                setActiveCallData(prev => {
+                  if (!prev) return null; // Should not happen if currentIsInCall
+                  if (prev.participantIds.includes(senderId)) return prev;
+                  return { ...prev, participantIds: [...prev.participantIds, senderId] };
+                });
+              }
+
+              // Handle the Offer
               if (pc) {
                 await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
               }
-              return;
+              return; // Handled as in-call mesh update
             }
 
+            // Normal Incoming Call (Not in a call yet)
             setIncomingCall({
               callerId: senderId,
               timestamp: Date.now(),
@@ -1393,7 +1427,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addToCall = async (recipientId: string) => {
     if (!currentUser || !isInCall || !activeCallData) return;
+
+    // 1. Host connects to New User
     await initiateCallConnection(recipientId, true);
+
+    // 2. Host tells ALL existing participants to connect to New User
+    activeCallData.participantIds.forEach(existingPid => {
+      if (existingPid !== recipientId) { // Should always be true as we push after
+        sendSignal('ADD_TO_CALL', existingPid, { targetId: recipientId });
+      }
+    });
+
     setActiveCallData(prev => prev ? { ...prev, participantIds: [...prev.participantIds, recipientId] } : null);
   };
 
