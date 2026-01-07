@@ -153,6 +153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signalingChannelRef = useRef<RealtimeChannel | null>(null);
   const isSignalingConnectedRef = useRef(false);
   const connectedParticipantsRef = useRef<Set<string>>(new Set()); // Tracks users who actually connected
+  const isEndingCallRef = useRef(false);
 
   // Ref to track incoming call state within event listeners without dependency loops
   const incomingCallRef = useRef<IncomingCall | null>(null);
@@ -1364,6 +1365,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addToCall = async (recipientId: string) => {
     if (!currentUser || !isInCall || !activeCallData) return;
+    if (activeCallData.participantIds.includes(recipientId)) return; // Prevent duplicates
+
     await initiateCallConnection(recipientId, true);
     setActiveCallData(prev => prev ? { ...prev, participantIds: [...prev.participantIds, recipientId] } : null);
   };
@@ -1431,6 +1434,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const endCall = async () => {
+    if (isEndingCallRef.current) return;
+    isEndingCallRef.current = true;
+
     if (activeCallData && currentUser) {
       // Notify peers
       activeCallData.participantIds.forEach(pid => { sendSignal('HANGUP', pid, {}); });
@@ -1499,6 +1505,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
     peerConnectionsRef.current.clear();
     connectedParticipantsRef.current.clear(); // Reset tracked connections
+    isEndingCallRef.current = false;
     setLocalStream(null);
     setRemoteStreams(new Map());
     setIsInCall(false);
