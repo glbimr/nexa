@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AppProvider, useApp } from './store';
+import { supabase } from './supabaseClient';
 import { Login } from './modules/Login';
 import { Dashboard } from './modules/Dashboard';
 import { KanbanBoard } from './modules/Kanban';
@@ -196,6 +197,7 @@ const MainLayout: React.FC = () => {
   // Avatar Modal State
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [previewAvatar, setPreviewAvatar] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Ringtone Preview State
@@ -292,6 +294,8 @@ const MainLayout: React.FC = () => {
     setOldPassword('');
     setNewPassword('');
     setConfirmPassword('');
+    setConfirmPassword('');
+    setSelectedFile(null); // Reset file
     setIsAvatarModalOpen(true);
   };
 
@@ -300,11 +304,43 @@ const MainLayout: React.FC = () => {
     if (file) {
       const url = URL.createObjectURL(file);
       setPreviewAvatar(url);
+      setSelectedFile(file);
     }
   };
 
-  const handleSaveAvatar = () => {
-    updateUser({ ...currentUser, avatar: previewAvatar });
+  const handleSaveAvatar = async () => {
+    let avatarUrl = previewAvatar;
+
+    if (selectedFile) {
+      try {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `avatars/${currentUser.id}_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('attachments')
+          .upload(fileName, selectedFile);
+
+        if (uploadError) {
+          console.error('Error uploading avatar:', uploadError);
+          // Fallback or alert? For now just log and maybe don't update if critical
+          // But we continue to try? No, if upload fails we shouldn't save broken URL
+          // But previewAvatar is blob URL which is broken effectively for others.
+          alert('Failed to upload image. Please try again.');
+          return;
+        }
+
+        const { data } = supabase.storage
+          .from('attachments')
+          .getPublicUrl(fileName);
+
+        avatarUrl = data.publicUrl;
+      } catch (error) {
+        console.error('Error processing avatar:', error);
+        alert('An unexpected error occurred.');
+        return;
+      }
+    }
+
+    updateUser({ ...currentUser, avatar: avatarUrl });
     setIsAvatarModalOpen(false);
   };
 
@@ -568,7 +604,7 @@ const MainLayout: React.FC = () => {
                 {PREDEFINED_AVATARS.map((avatar, index) => (
                   <button
                     key={index}
-                    onClick={() => setPreviewAvatar(avatar)}
+                    onClick={() => { setPreviewAvatar(avatar); setSelectedFile(null); }}
                     className={`relative rounded-xl transition-all group aspect-square flex items-center justify-center border-2 ${previewAvatar === avatar
                       ? 'border-indigo-500 bg-indigo-50/30'
                       : 'border-transparent bg-slate-50 hover:bg-slate-100 hover:border-slate-200'
