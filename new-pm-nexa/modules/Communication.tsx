@@ -3,7 +3,7 @@ import { useApp } from '../store';
 import { supabase } from '../supabaseClient';
 import {
   Send, Phone, Mic, MicOff,
-  Monitor, PhoneOff, Search, Users, ChevronLeft,
+  Monitor, PhoneOff, Search, Users, ChevronLeft, ChevronDown, ChevronRight,
   Paperclip, FileText, Image as ImageIcon, X, Plus, Check, BellRing,
   Maximize2, Minimize2, PictureInPicture, UserPlus, Layout, MoreVertical, Trash2,
   PhoneMissed, Pin, PinOff, Maximize
@@ -35,6 +35,7 @@ export const Communication: React.FC = () => {
   const [manualChatIds, setManualChatIds] = useState<string[]>([]); // Chats manually opened via "New Chat"
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null); // For the 3-dot menu
   const [activeHeaderMenu, setActiveHeaderMenu] = useState(false); // For header 3-dot menu
+  const [isGroupsExpanded, setIsGroupsExpanded] = useState(false); // Collapsible Group Chats
 
   // Modal State
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
@@ -851,69 +852,83 @@ export const Communication: React.FC = () => {
 
           {/* Groups Section */}
           {filteredGroups.length > 0 && (
-            <>
-              <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">Groups</div>
-              {filteredGroups.map(group => (
-                <div key={group.id} className="relative group/item">
-                  <button
-                    onClick={() => handleChatSelect(group)}
-                    className={`w-full flex items-center p-3 rounded-lg transition-colors ${isGroup(selectedChat) && selectedChat.id === group.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-white hover:shadow-sm text-slate-700'
-                      }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 border border-blue-200 relative">
-                      <span className="font-bold text-xs">{group.name.substring(0, 2).toUpperCase()}</span>
-                      {/* Red Dot for Unread Group Messages */}
-                      {getUnreadCount(group.id) > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
-                      )}
-                    </div>
-                    <div className="flex-1 text-left min-w-0 pr-6">
-                      <div className="flex justify-between items-baseline">
-                        <div className="font-semibold text-sm truncate">{group.name}</div>
-                        {getLastMsgTimestamp(group.id, true) > 0 && (
-                          <span className="text-[10px] opacity-60 ml-2 whitespace-nowrap">
-                            {new Date(getLastMsgTimestamp(group.id, true)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs opacity-70 truncate">{group.memberIds.length} members</div>
-                    </div>
-                  </button>
-                  {/* Context Menu Button */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === group.id ? null : group.id); }}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded opacity-0 group-hover/item:opacity-100 transition-opacity"
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                  {activeMenuId === group.id && (
-                    <div className="absolute right-0 top-8 bg-white shadow-xl border border-slate-100 rounded-lg z-50 w-36 py-1">
-                      <button
-                        onClick={(e) => handleHideChat(e, group.id)}
-                        className="w-full text-left px-4 py-2 text-xs text-slate-600 hover:bg-slate-50 flex items-center"
-                      >
-                        <X size={12} className="mr-2" /> Hide Chat
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteChat(e, group.id)}
-                        className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center"
-                      >
-                        <Trash2 size={12} className="mr-2" /> Delete Chat
-                      </button>
-                      {/* Admin Option: Permanently Delete Group */}
-                      {(currentUser?.role === 'ADMIN' || group.createdBy === currentUser?.id) && (
-                        <button
-                          onClick={(e) => handleDeepDeleteGroup(e, group.id)}
-                          className="w-full text-left px-4 py-2 text-xs text-red-700 font-bold hover:bg-red-100 flex items-center border-t border-red-100"
-                        >
-                          <Trash2 size={12} className="mr-2 fill-current" /> Delete Group
-                        </button>
-                      )}
-                    </div>
-                  )}
+            <div className="mt-2">
+              <button
+                onClick={() => setIsGroupsExpanded(!isGroupsExpanded)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors group"
+              >
+                <div className="flex items-center">
+                  <Users size={14} className="mr-2 opacity-70" />
+                  <span>Groups ({filteredGroups.length})</span>
                 </div>
-              ))}
-            </>
+                {isGroupsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+
+              {isGroupsExpanded && (
+                <div className="mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                  {filteredGroups.map(group => (
+                    <div key={group.id} className="relative group/item">
+                      <button
+                        onClick={() => handleChatSelect(group)}
+                        className={`w-full flex items-center p-3 rounded-lg transition-colors ${isGroup(selectedChat) && selectedChat.id === group.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-white hover:shadow-sm text-slate-700'
+                          }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 border border-blue-200 relative">
+                          <span className="font-bold text-xs">{group.name.substring(0, 2).toUpperCase()}</span>
+                          {/* Red Dot for Unread Group Messages */}
+                          {getUnreadCount(group.id) > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                          )}
+                        </div>
+                        <div className="flex-1 text-left min-w-0 pr-6">
+                          <div className="flex justify-between items-baseline">
+                            <div className="font-semibold text-sm truncate">{group.name}</div>
+                            {getLastMsgTimestamp(group.id, true) > 0 && (
+                              <span className="text-[10px] opacity-60 ml-2 whitespace-nowrap">
+                                {new Date(getLastMsgTimestamp(group.id, true)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs opacity-70 truncate">{group.memberIds.length} members</div>
+                        </div>
+                      </button>
+                      {/* Context Menu Button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === group.id ? null : group.id); }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded opacity-0 group-hover/item:opacity-100 transition-opacity"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {activeMenuId === group.id && (
+                        <div className="absolute right-0 top-8 bg-white shadow-xl border border-slate-100 rounded-lg z-50 w-36 py-1">
+                          <button
+                            onClick={(e) => handleHideChat(e, group.id)}
+                            className="w-full text-left px-4 py-2 text-xs text-slate-600 hover:bg-slate-50 flex items-center"
+                          >
+                            <X size={12} className="mr-2" /> Hide Chat
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteChat(e, group.id)}
+                            className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center"
+                          >
+                            <Trash2 size={12} className="mr-2" /> Delete Chat
+                          </button>
+                          {/* Admin Option: Permanently Delete Group */}
+                          {(currentUser?.role === 'ADMIN' || group.createdBy === currentUser?.id) && (
+                            <button
+                              onClick={(e) => handleDeepDeleteGroup(e, group.id)}
+                              className="w-full text-left px-4 py-2 text-xs text-red-700 font-bold hover:bg-red-100 flex items-center border-t border-red-100"
+                            >
+                              <Trash2 size={12} className="mr-2 fill-current" /> Delete Group
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* DMs Section */}
