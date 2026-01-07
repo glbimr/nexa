@@ -167,6 +167,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const usersRef = useRef(users);
   const currentUserRef = useRef(currentUser);
 
+  // Queue for offers that arrive while we are already ringing/busy with setup
+  const pendingOffersRef = useRef<Map<string, any>>(new Map());
+
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -530,11 +533,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             // Normal Incoming Call (Not in a call yet)
-            setIncomingCall({
-              callerId: senderId,
-              timestamp: Date.now(),
-              offer: signalPayload.sdp
-            });
+            // If we are already receiving a call (ringing), queue this secondary offer
+            if (incomingCallRef.current) {
+              if (incomingCallRef.current.callerId !== senderId) {
+                console.log(`Queueing offer from ${senderId} while ringing for ${incomingCallRef.current.callerId}`);
+                pendingOffersRef.current.set(senderId, signalPayload);
+              }
+            } else {
+              setIncomingCall({
+                callerId: senderId,
+                timestamp: Date.now(),
+                offer: signalPayload.sdp
+              });
+            }
             break;
 
           case 'ANSWER':
@@ -546,6 +557,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   if (!prev) return null;
                   if (prev.participantIds.includes(senderId)) return prev;
                   return { ...prev, participantIds: [...prev.participantIds, senderId] };
+                });
+
+                // Mesh Introduction: Introduce this new peer to all other known participants
+                // This ensures that if A calls [B, C], when B answers, B is told to call C (and C to call B)
+                // We use ID comparison to ensure only ONE side initiates to avoid Glare/Duplicate connections.
+                const currentParticipants = activeCallDataRef.current?.participantIds || [];
+                currentParticipants.forEach(pid => {
+                  if (pid !== senderId && pid !== currentUser.id) {
+                    // We have B (sender) and C (pid). We are A.
+                    // We tell them to connect.
+                    // To avoid duplicate offers, we establish a convention:
+                    // The one with the "Lower" ID initiates.
+
+                    // Actually, we can just tell our existing peer (pid) to add the new guy (senderId).
+                    // But pid might be offline/connecting.
+                    // Safer Strategy: Sending ADD_TO_CALL is a command "You should connect to X".
+
+                    // Let's send ADD_TO_CALL to 'senderId' to connect to 'pid'
+                    // AND to 'pid' to connect to 'senderId'.
+                    // But we guard execution in ADD_TO_CALL or initiateCallConnection to check existing presence.
+
+                    // Optimization: Only the "Host" (us) needs to send this? 
+                    // Since we are the hub A, we know both.
+
+                    sendSignal('ADD_TO_CALL', senderId, { targetId: pid });
+                    sendSignal('ADD_TO_CALL', pid, { targetId: senderId });
+                  }
                 });
               }
             }
@@ -1442,6 +1480,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const initiateCallConnection = async (recipientId: string, isAdding: boolean = false) => {
+    // Safety: If we already have a connection, don't overwrite it unless necessary
+    if (peerConnectionsRef.current.has(recipientId)) {
+      // We might want to check state? If 'closed', allowed.
+      if (peerConnectionsRef.current.get(recipientId)?.signalingState !== 'closed') {
+        return;
+      }
+    }
+
     try {
       let stream = localStream;
 
@@ -1507,13 +1553,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsInCall(true);
       setActiveCallData({ participantIds: [incomingCall.callerId] });
       setIncomingCall(null);
+
+      // Process Queued Offers (Mesh scenarios where invites arrived simultaneously)
+      if (pendingOffersRef.current.size > 0) {
+        console.log("Processing queued offers:", pendingOffersRef.current.size);
+        const queued = Array.from(pendingOffersRef.current.entries());
+        pendingOffersRef.current.clear();
+
+        queued.forEach(async ([senderId, payload]) => {
+          try {
+            // 1. Create PC
+            let pc = peerConnectionsRef.current.get(senderId);
+            if (!pc) {
+              pc = createPeerConnection(senderId);
+              stream!.getTracks().forEach(track => pc!.addTrack(track, stream!)); // Use the stream we just acquired in this scope
+
+              // Add to participants list
+              setActiveCallData(prev => {
+                if (!prev) return { participantIds: [incomingCall.callerId, senderId] };
+                if (prev.participantIds.includes(senderId)) return prev;
+                return { ...prev, participantIds: [...prev.participantIds, senderId] };
+              });
+            }
+
+            // 2. Handle Offer
+            await pc!.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            const answer = await pc!.createAnswer();
+            await pc!.setLocalDescription(answer);
+            sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
+          } catch (e) {
+            console.error("Error processing queued offer from", senderId, e);
+          }
+        });
+      }
+
     } catch (err) { console.error("Error accepting call:", err); }
   };
 
   const rejectIncomingCall = () => {
     if (incomingCall && currentUser) {
       sendSignal('HANGUP', incomingCall.callerId, {});
+      sendSignal('HANGUP', incomingCall.callerId, {});
       setIncomingCall(null);
+      pendingOffersRef.current.clear(); // Clear other queued offers
     }
   };
 
@@ -1557,6 +1639,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsScreenSharing(false);
     setIsMicOn(false);
     setIsCameraOn(false);
+    setIsMicOn(false);
+    setIsCameraOn(false);
+    pendingOffersRef.current.clear();
   };
 
   const stopScreenSharing = async () => {
