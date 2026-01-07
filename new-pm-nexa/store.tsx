@@ -1218,7 +1218,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // If no audio stream yet, request mic permission and create one
     if (!audioStream) {
       try {
-        const newAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const newAudioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
         const newTrack = newAudioStream.getAudioTracks()[0];
 
         setLocalAudioStream(newAudioStream);
@@ -1349,7 +1355,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!stream) {
       try {
         // Start with Audio ON (permission wise) but Muted, Video OFF
-        stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
         // Important: Start MUTED by default as per requirement
         stream.getAudioTracks().forEach(t => t.enabled = false);
         setIsMicOn(false);
@@ -1391,7 +1404,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Ensure we have a stream
       if (!stream) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
           // Start Muted
           stream.getAudioTracks().forEach(t => t.enabled = false);
           setLocalStream(stream);
@@ -1414,7 +1434,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
         // Start Muted
         stream.getAudioTracks().forEach(t => t.enabled = false);
         setIsMicOn(false);
