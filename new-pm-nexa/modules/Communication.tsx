@@ -1458,12 +1458,19 @@ export const Communication: React.FC = () => {
               onChange={handleFileSelect}
             />
 
-            <input
-              type="text"
+            <textarea
               value={inputText}
               onChange={e => setInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend(e);
+                }
+              }}
               placeholder={`Message ${selectedChat ? selectedChat.name.split(' ')[0] : 'Team'}...`}
-              className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-sm text-slate-800 placeholder-slate-400 py-3 max-h-32"
+              rows={1}
+              className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-sm text-slate-800 placeholder-slate-400 py-3 min-h-[44px] max-h-32 resize-none custom-scrollbar"
+              style={{ height: 'auto' }} // Simple auto-height hack? No, that requires JS. Just basic textarea for now. Textarea with rows=1 will scroll.
             />
 
             <button
