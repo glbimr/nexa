@@ -54,20 +54,8 @@ export const Dashboard: React.FC = () => {
   const { tasks, currentUser, users, updateUser, setSelectedTaskId, setActiveTab } = useApp();
 
   // State initialization from current user config or defaults
-  const getDefaults = () => {
-    const base = JSON.parse(JSON.stringify(DEFAULT_WIDGETS)) as DashboardWidget[];
-    if (currentUser?.role === 'ADMIN') {
-      return base.map(w => ({
-        ...w,
-        title: w.title.replace('My', 'All'),
-        filter: { ...w.filter, assignee: 'all' as 'all' | 'me' }
-      }));
-    }
-    return base;
-  };
-
   const [widgets, setWidgets] = useState<DashboardWidget[]>(
-    currentUser?.dashboardConfig || getDefaults()
+    currentUser?.dashboardConfig || DEFAULT_WIDGETS
   );
 
   const [isEditMode, setIsEditMode] = useState(false);
@@ -80,7 +68,7 @@ export const Dashboard: React.FC = () => {
   // Card Form
   const [newWidgetIcon, setNewWidgetIcon] = useState('list');
   const [newWidgetTheme, setNewWidgetTheme] = useState<ColorTheme>('blue');
-  const [newWidgetFilter, setNewWidgetFilter] = useState<WidgetFilter>({ status: 'all', priority: 'all', category: 'all', assignee: currentUser?.role === 'ADMIN' ? 'all' : 'me' });
+  const [newWidgetFilter, setNewWidgetFilter] = useState<WidgetFilter>({ status: 'all', priority: 'all', category: 'all', assignee: 'me' });
 
   // Chart Form
   const [newChartType, setNewChartType] = useState<ChartType>('pie');
@@ -228,12 +216,12 @@ export const Dashboard: React.FC = () => {
   };
 
   const resetDefaults = () => {
-    saveWidgets(getDefaults());
+    saveWidgets(DEFAULT_WIDGETS);
   };
 
   const resetForm = () => {
     setNewWidgetTitle('');
-    setNewWidgetFilter({ status: 'all', priority: 'all', category: 'all', assignee: currentUser?.role === 'ADMIN' ? 'all' : 'me' });
+    setNewWidgetFilter({ status: 'all', priority: 'all', category: 'all', assignee: 'me' });
   };
 
   const cards = widgets.filter(w => w.type === 'card');

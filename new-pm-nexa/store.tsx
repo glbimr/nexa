@@ -152,8 +152,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const signalingChannelRef = useRef<RealtimeChannel | null>(null);
   const isSignalingConnectedRef = useRef(false);
-  const connectedParticipantsRef = useRef<Set<string>>(new Set()); // Tracks users who actually connected
-  const isEndingCallRef = useRef(false);
 
   // Ref to track incoming call state within event listeners without dependency loops
   const incomingCallRef = useRef<IncomingCall | null>(null);
@@ -507,13 +505,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           case 'ANSWER':
             {
-              // Mark this sender as having connected (they picked up)
-              console.log("[Call] Answer received from:", senderId); // Debug
-              connectedParticipantsRef.current.add(senderId);
-              if (signalPayload && (signalPayload as any).senderId) {
-                connectedParticipantsRef.current.add((signalPayload as any).senderId);
-              }
-
               const pc = peerConnectionsRef.current.get(senderId);
               if (pc) {
                 await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
@@ -546,6 +537,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const usersList = usersRef.current;
               const caller = usersList.find(u => u.id === senderId);
               const callerName = caller ? caller.name : 'Unknown User';
+
+              // 1. Create Missed Call Notification
+              const { error: notifError } = await supabase.from('notifications').insert({
+                id: 'n-' + Date.now() + Math.random(),
+                recipient_id: currentUser.id,
+                sender_id: senderId,
+                type: NotificationType.MISSED_CALL,
+                title: 'Missed Call',
+                message: `You missed a call from ${callerName}`,
+                timestamp: Date.now(),
+                read: false,
+                link_to: senderId
+              });
+              if (notifError) console.error("Error creating missed call notification:", notifError);
+
+              // 2. Create Missed Call Chat Message
+              const { error: msgError } = await supabase.from('messages').insert({
+                id: 'm-' + Date.now() + Math.random(),
+                sender_id: senderId,
+                recipient_id: currentUser.id,
+                text: 'Missed Call',
+                timestamp: Date.now(),
+                type: 'missed_call',
+                attachments: []
+              });
+              if (msgError) console.error("Error creating missed call message:", msgError);
 
               setIncomingCall(null);
             }
@@ -1168,12 +1185,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     };
 
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-        connectedParticipantsRef.current.add(recipientId);
-      }
-    };
-
     peerConnectionsRef.current.set(recipientId, pc);
     return pc;
   };
@@ -1369,8 +1380,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addToCall = async (recipientId: string) => {
     if (!currentUser || !isInCall || !activeCallData) return;
-    if (activeCallData.participantIds.includes(recipientId)) return; // Prevent duplicates
-
     await initiateCallConnection(recipientId, true);
     setActiveCallData(prev => prev ? { ...prev, participantIds: [...prev.participantIds, recipientId] } : null);
   };
@@ -1437,47 +1446,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const endCall = async () => {
-    if (isEndingCallRef.current) return;
-    isEndingCallRef.current = true;
-
+  const endCall = () => {
     if (activeCallData && currentUser) {
-      // Notify peers
       activeCallData.participantIds.forEach(pid => { sendSignal('HANGUP', pid, {}); });
-
-      // Check for missed calls (Caller is responsible for this now)
-      for (const pid of activeCallData.participantIds) {
-        // If the participant NEVER connected during this session, it's a missed call
-        const hasConnected = connectedParticipantsRef.current.has(pid);
-
-        if (!hasConnected) {
-          // Insert Notification
-          const { error: notifError } = await supabase.from('notifications').insert({
-            id: 'n-' + Date.now() + Math.random(),
-            recipient_id: pid,
-            sender_id: currentUser.id,
-            type: NotificationType.MISSED_CALL,
-            title: 'Missed Call',
-            message: `You missed a call from ${currentUser.name}`,
-            timestamp: Date.now(),
-            read: false,
-            link_to: currentUser.id
-          });
-          if (notifError) console.error("Error creating missed call notification:", notifError);
-
-          // Insert Chat Message
-          const { error: msgError } = await supabase.from('messages').insert({
-            id: 'm-' + Date.now() + Math.random(),
-            sender_id: currentUser.id, // Caller is sender
-            recipient_id: pid,         // Callee is recipient
-            text: 'Missed Call',
-            timestamp: Date.now(),
-            type: 'missed_call',
-            attachments: []
-          });
-          if (msgError) console.error("Error creating missed call message:", msgError);
-        }
-      }
     }
     cleanupCall();
   };
@@ -1508,8 +1479,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
     peerConnectionsRef.current.clear();
-    connectedParticipantsRef.current.clear(); // Reset tracked connections
-    isEndingCallRef.current = false;
     setLocalStream(null);
     setRemoteStreams(new Map());
     setIsInCall(false);
