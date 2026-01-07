@@ -511,11 +511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 // Create new PC
                 pc = createPeerConnection(senderId);
                 if (stream) {
-                  stream.getTracks().forEach(track => {
-                    if (!pc!.getSenders().some(s => s.track === track)) {
-                      pc!.addTrack(track, stream!);
-                    }
-                  });
+                  stream.getTracks().forEach(track => pc!.addTrack(track, stream!));
                 }
 
                 // Update our participant list
@@ -569,12 +565,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const currentParticipants = activeCallDataRef.current?.participantIds || [];
                 currentParticipants.forEach(pid => {
                   if (pid !== senderId && pid !== currentUser.id) {
-                    // To avoid glare (both sides calling each other), the peer with the "lower" ID initiates
-                    if (senderId < pid) {
-                      sendSignal('ADD_TO_CALL', senderId, { targetId: pid });
-                    } else {
-                      sendSignal('ADD_TO_CALL', pid, { targetId: senderId });
-                    }
+                    // We have B (sender) and C (pid). We are A.
+                    // We tell them to connect.
+                    // To avoid duplicate offers, we establish a convention:
+                    // The one with the "Lower" ID initiates.
+
+                    // Actually, we can just tell our existing peer (pid) to add the new guy (senderId).
+                    // But pid might be offline/connecting.
+                    // Safer Strategy: Sending ADD_TO_CALL is a command "You should connect to X".
+
+                    // Let's send ADD_TO_CALL to 'senderId' to connect to 'pid'
+                    // AND to 'pid' to connect to 'senderId'.
+                    // But we guard execution in ADD_TO_CALL or initiateCallConnection to check existing presence.
+
+                    // Optimization: Only the "Host" (us) needs to send this? 
+                    // Since we are the hub A, we know both.
+
+                    sendSignal('ADD_TO_CALL', senderId, { targetId: pid });
+                    sendSignal('ADD_TO_CALL', pid, { targetId: senderId });
                   }
                 });
               }
@@ -1264,7 +1272,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const renegotiate = async () => {
-    if (!localStream || !isInCallRef.current) return;
+    if (!localStream) return;
     for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
       try {
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
@@ -1307,9 +1315,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Update preview stream
         composeLocalStream();
-        if (isInCallRef.current) {
-          await renegotiate();
-        }
+        await renegotiate();
         return;
       } catch (e) {
         console.error('Failed to acquire microphone:', e);
@@ -1417,7 +1423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const startGroupCall = async (recipientIds: string[]) => {
     if (!currentUser || recipientIds.length === 0) return;
 
-    let stream = localStreamRef.current;
+    let stream = localStream;
     if (!stream) {
       try {
         // Start with Audio ON (permission wise) but Muted, Video OFF
@@ -1505,11 +1511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const pc = createPeerConnection(recipientId);
-      stream.getTracks().forEach(track => {
-        if (!pc.getSenders().some(s => s.track === track)) {
-          pc.addTrack(track, stream!);
-        }
-      });
+      stream.getTracks().forEach(track => pc.addTrack(track, stream!));
 
       const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
@@ -1520,33 +1522,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const acceptIncomingCall = async () => {
     if (!incomingCall || !currentUser) return;
     try {
-      let stream = localStreamRef.current;
-
-      if (!stream) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: false,
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            }
-          });
-          // Start Muted
-          stream.getAudioTracks().forEach(t => t.enabled = false);
-          setIsMicOn(false);
-          setIsCameraOn(false);
-        }
-        catch (e) { console.error("Could not access microphone"); return; }
-        setLocalStream(stream);
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        // Start Muted
+        stream.getAudioTracks().forEach(t => t.enabled = false);
+        setIsMicOn(false);
+        setIsCameraOn(false);
       }
+      catch (e) { console.error("Could not access microphone"); return; }
+      setLocalStream(stream);
 
       const pc = createPeerConnection(incomingCall.callerId);
-      stream.getTracks().forEach(track => {
-        if (!pc.getSenders().some(s => s.track === track)) {
-          pc.addTrack(track, stream);
-        }
-      });
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       if (incomingCall.offer) {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
@@ -1571,11 +1566,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             let pc = peerConnectionsRef.current.get(senderId);
             if (!pc) {
               pc = createPeerConnection(senderId);
-              stream!.getTracks().forEach(track => {
-                if (!pc!.getSenders().some(s => s.track === track)) {
-                  pc!.addTrack(track, stream!);
-                }
-              }); // Use the stream we just acquired in this scope
+              stream!.getTracks().forEach(track => pc!.addTrack(track, stream!)); // Use the stream we just acquired in this scope
 
               // Add to participants list
               setActiveCallData(prev => {
@@ -1601,6 +1592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const rejectIncomingCall = () => {
     if (incomingCall && currentUser) {
+      sendSignal('HANGUP', incomingCall.callerId, {});
       sendSignal('HANGUP', incomingCall.callerId, {});
       setIncomingCall(null);
       pendingOffersRef.current.clear(); // Clear other queued offers
@@ -1645,6 +1637,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsInCall(false);
     setActiveCallData(null);
     setIsScreenSharing(false);
+    setIsMicOn(false);
+    setIsCameraOn(false);
     setIsMicOn(false);
     setIsCameraOn(false);
     pendingOffersRef.current.clear();
