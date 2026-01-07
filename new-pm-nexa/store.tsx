@@ -538,32 +538,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const caller = usersList.find(u => u.id === senderId);
               const callerName = caller ? caller.name : 'Unknown User';
 
-              // 1. Create Missed Call Notification
-              const { error: notifError } = await supabase.from('notifications').insert({
-                id: 'n-' + Date.now() + Math.random(),
-                recipient_id: currentUser.id,
-                sender_id: senderId,
-                type: NotificationType.MISSED_CALL,
-                title: 'Missed Call',
-                message: `You missed a call from ${callerName}`,
-                timestamp: Date.now(),
-                read: false,
-                link_to: senderId
-              });
-              if (notifError) console.error("Error creating missed call notification:", notifError);
-
-              // 2. Create Missed Call Chat Message
-              const { error: msgError } = await supabase.from('messages').insert({
-                id: 'm-' + Date.now() + Math.random(),
-                sender_id: senderId,
-                recipient_id: currentUser.id,
-                text: 'Missed Call',
-                timestamp: Date.now(),
-                type: 'missed_call',
-                attachments: []
-              });
-              if (msgError) console.error("Error creating missed call message:", msgError);
-
               setIncomingCall(null);
             }
 
@@ -1446,9 +1420,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const endCall = () => {
+  const endCall = async () => {
     if (activeCallData && currentUser) {
+      // Notify peers
       activeCallData.participantIds.forEach(pid => { sendSignal('HANGUP', pid, {}); });
+
+      // Check for missed calls (Caller is responsible for this now)
+      for (const pid of activeCallData.participantIds) {
+        const pc = peerConnectionsRef.current.get(pid);
+        // If PC doesn't exist or never reached connected state, assume missed call
+        // Note: 'completed' state also means connected in some implementations
+        const wasConnected = pc && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+
+        if (!wasConnected) {
+          // Insert Notification
+          const { error: notifError } = await supabase.from('notifications').insert({
+            id: 'n-' + Date.now() + Math.random(),
+            recipient_id: pid,
+            sender_id: currentUser.id,
+            type: NotificationType.MISSED_CALL,
+            title: 'Missed Call',
+            message: `You missed a call from ${currentUser.name}`,
+            timestamp: Date.now(),
+            read: false,
+            link_to: currentUser.id
+          });
+          if (notifError) console.error("Error creating missed call notification:", notifError);
+
+          // Insert Chat Message
+          const { error: msgError } = await supabase.from('messages').insert({
+            id: 'm-' + Date.now() + Math.random(),
+            sender_id: currentUser.id, // Caller is sender
+            recipient_id: pid,         // Callee is recipient
+            text: 'Missed Call',
+            timestamp: Date.now(),
+            type: 'missed_call',
+            attachments: []
+          });
+          if (msgError) console.error("Error creating missed call message:", msgError);
+        }
+      }
     }
     cleanupCall();
   };
