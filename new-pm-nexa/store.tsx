@@ -152,6 +152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const signalingChannelRef = useRef<RealtimeChannel | null>(null);
   const isSignalingConnectedRef = useRef(false);
+  const connectedParticipantsRef = useRef<Set<string>>(new Set()); // Tracks users who actually connected
 
   // Ref to track incoming call state within event listeners without dependency loops
   const incomingCallRef = useRef<IncomingCall | null>(null);
@@ -1159,6 +1160,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     };
 
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        connectedParticipantsRef.current.add(recipientId);
+      }
+    };
+
     peerConnectionsRef.current.set(recipientId, pc);
     return pc;
   };
@@ -1427,12 +1434,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Check for missed calls (Caller is responsible for this now)
       for (const pid of activeCallData.participantIds) {
-        const pc = peerConnectionsRef.current.get(pid);
-        // If PC doesn't exist or never reached connected state, assume missed call
-        // Note: 'completed' state also means connected in some implementations
-        const wasConnected = pc && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+        // If the participant NEVER connected during this session, it's a missed call
+        const hasConnected = connectedParticipantsRef.current.has(pid);
 
-        if (!wasConnected) {
+        if (!hasConnected) {
           // Insert Notification
           const { error: notifError } = await supabase.from('notifications').insert({
             id: 'n-' + Date.now() + Math.random(),
@@ -1490,6 +1495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
     peerConnectionsRef.current.clear();
+    connectedParticipantsRef.current.clear(); // Reset tracked connections
     setLocalStream(null);
     setRemoteStreams(new Map());
     setIsInCall(false);
