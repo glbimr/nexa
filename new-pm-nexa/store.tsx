@@ -13,7 +13,11 @@ interface AppContextType {
   notifications: Notification[];
   incomingCall: IncomingCall | null;
   isInCall: boolean;
+
   activeCallData: { participantIds: string[] } | null;
+  recipientBusy: string | null;
+  waitToCall: () => void;
+  cancelCallWait: () => void;
 
   // Chat History Management
   deletedMessageIds: Set<string>;
@@ -115,6 +119,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [isInCall, setIsInCall] = useState(false);
   const [activeCallData, setActiveCallData] = useState<{ participantIds: string[] } | null>(null);
+  const [recipientBusy, setRecipientBusy] = useState<string | null>(null);
+  const tempOfferRef = useRef<any>(null); // Store offer while waiting for BUSY decision
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   // Separate streams for audio and video to avoid coupling audio and screen sharing
@@ -499,53 +505,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Multi-user Mesh Logic:
             // If we are already in a call, we accept ANY valid Offer as a new participant (or renegotiation)
             if (currentIsInCall) {
-              let pc = peerConnectionsRef.current.get(senderId);
+              // Check if sender is already a participant (Renegotiation)
+              const isExistingParticipant = activeCallDataRef.current?.participantIds.includes(senderId);
 
-              // If PC exists -> Renegotiation
-              // If PC does not exist -> New Mesh Peer joining our ongoing call
-              if (!pc) {
-                // Determine our local stream to add
-                let stream = localStreamRef.current;
-                if (!stream && localAudioStreamRef.current) stream = localAudioStreamRef.current; // Fallback
-
-                // Create new PC
-                pc = createPeerConnection(senderId);
-                if (stream) {
-                  stream.getTracks().forEach(track => pc!.addTrack(track, stream!));
+              if (isExistingParticipant) {
+                // Standard Renegotiation logic
+                let pc = peerConnectionsRef.current.get(senderId);
+                if (!pc) {
+                  // Should exist if participant, but handle edge case
+                  let stream = localStreamRef.current || localAudioStreamRef.current;
+                  pc = createPeerConnection(senderId);
+                  if (stream) stream.getTracks().forEach(track => pc!.addTrack(track, stream!));
                 }
+                if (pc) {
+                  await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
+                  const answer = await pc.createAnswer();
+                  await pc.setLocalDescription(answer);
+                  sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
+                }
+              } else {
+                // New caller trying to interrupt/join -> Send BUSY
+                // Do NOT process offer yet.
+                sendSignal('BUSY', senderId, {});
 
-                // Update our participant list
-                setActiveCallData(prev => {
-                  if (!prev) return null; // Should not happen if currentIsInCall
-                  if (prev.participantIds.includes(senderId)) return prev;
-                  return { ...prev, participantIds: [...prev.participantIds, senderId] };
-                });
+                // Store offer temporarily in case they "Wait" and we accept
+                pendingOffersRef.current.set(senderId, signalPayload);
               }
-
-              // Handle the Offer
-              if (pc) {
-                await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
-              }
-              return; // Handled as in-call mesh update
+              return;
             }
 
             // Normal Incoming Call (Not in a call yet)
-            // If we are already receiving a call (ringing), queue this secondary offer
-            if (incomingCallRef.current) {
-              if (incomingCallRef.current.callerId !== senderId) {
-                console.log(`Queueing offer from ${senderId} while ringing for ${incomingCallRef.current.callerId}`);
-                pendingOffersRef.current.set(senderId, signalPayload);
-              }
-            } else {
-              setIncomingCall({
-                callerId: senderId,
-                timestamp: Date.now(),
-                offer: signalPayload.sdp
-              });
-            }
+            setIncomingCall({
+              callerId: senderId,
+              timestamp: Date.now(),
+              offer: signalPayload.sdp
+            });
+            break;
+
+          case 'BUSY':
+            // We called someone, and they are busy
+            setRecipientBusy(senderId);
+            break;
+
+          case 'WAIT_NOTIFY':
+            // Caller decided to wait. Show Incoming Call Overlay even if busy.
+            // We retrieve the pending offer if it exists
+            const pendingOffer = pendingOffersRef.current.get(senderId);
+            setIncomingCall({
+              callerId: senderId,
+              timestamp: Date.now(),
+              offer: pendingOffer ? pendingOffer.sdp : undefined
+            });
+            break;
             break;
 
           case 'ANSWER':
@@ -1532,25 +1543,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!incomingCall || !currentUser) return;
     try {
       let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-        // Start Muted
-        stream.getAudioTracks().forEach(t => t.enabled = false);
-        setIsMicOn(false);
-        setIsCameraOn(false);
+      // Re-use existing stream if available (Merging calls)
+      if (!localStreamRef.current) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+          // Start Muted
+          stream.getAudioTracks().forEach(t => t.enabled = false);
+          setIsMicOn(false);
+          setIsCameraOn(false);
+        }
+        catch (e) { console.error("Could not access microphone"); return; }
+        setLocalStream(stream);
+        // Update refs immediately for safety
+        localStreamRef.current = stream;
+        if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
+      } else {
+        // We are already in a call, reuse the existing stream
+        stream = localStreamRef.current!;
       }
-      catch (e) { console.error("Could not access microphone"); return; }
-      setLocalStream(stream);
-      // Update refs immediately for safety
-      localStreamRef.current = stream;
-      if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
 
       const pc = createPeerConnection(incomingCall.callerId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -1563,7 +1580,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setIsInCall(true);
-      setActiveCallData({ participantIds: [incomingCall.callerId] });
+
+      // Update Active Call Data (Merge Logic)
+      setActiveCallData(prev => {
+        const currentIds = prev ? prev.participantIds : [];
+        if (currentIds.includes(incomingCall.callerId)) return prev;
+        return { participantIds: [...currentIds, incomingCall.callerId] };
+      });
+
+      // Mesh: Introduce new participant to existing ones
+      if (activeCallDataRef.current) {
+        activeCallDataRef.current.participantIds.forEach(pid => {
+          if (pid !== incomingCall.callerId) {
+            // Ensure both sides connect
+            sendSignal('ADD_TO_CALL', incomingCall.callerId, { targetId: pid });
+            sendSignal('ADD_TO_CALL', pid, { targetId: incomingCall.callerId });
+          }
+        });
+      }
+
       setIncomingCall(null);
 
       // Safety: Force a sanity check renegotiation/update after a short delay
@@ -1607,6 +1642,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
     } catch (err) { console.error("Error accepting call:", err); }
+  };
+
+  const waitToCall = () => {
+    if (recipientBusy) {
+      sendSignal('WAIT_NOTIFY', recipientBusy, {});
+      setRecipientBusy(null); // Clear busy state, wait for their overlay logic
+    }
+  };
+
+  const cancelCallWait = () => {
+    setRecipientBusy(null);
   };
 
   const rejectIncomingCall = () => {
@@ -1903,6 +1949,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       markChatRead, getUnreadCount, totalUnreadChatCount,
       activeTab, setActiveTab,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
+      recipientBusy, waitToCall, cancelCallWait,
       ringtone, setRingtone,
       meetings,
       addMeeting: async (m: Meeting) => {

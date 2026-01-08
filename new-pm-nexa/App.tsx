@@ -40,7 +40,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Calendar
+
+  Calendar,
+  Timer,
+  PhoneCall
 } from 'lucide-react';
 
 import { UserRole, NotificationType } from './types';
@@ -68,8 +71,37 @@ const AVAILABLE_RINGTONES = [
   { name: 'Piano Melody', url: 'https://www.orangefreesounds.com/wp-content/uploads/2021/01/Piano-ringtone.mp3' },
   { name: 'Marimba Groove', url: 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3' },
 ];
+const BusyCallModal: React.FC = () => {
+  const { recipientBusy, waitToCall, cancelCallWait, users } = useApp();
+  if (!recipientBusy) return null;
+  const user = users.find(u => u.id === recipientBusy);
+  return (
+    <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center">
+        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Timer size={32} className="text-amber-600" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">
+          {user ? user.name : 'User'} is busy
+        </h3>
+        <p className="text-slate-500 mb-6 text-sm">
+          {user ? user.name : 'The user'} is currently in another call. Would you like to wait for them?
+        </p>
+        <div className="flex gap-3">
+          <button onClick={cancelCallWait} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+            Hang Up
+          </button>
+          <button onClick={waitToCall} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors">
+            Wait
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const IncomingCallOverlay: React.FC = () => {
-  const { incomingCall, users, acceptIncomingCall, rejectIncomingCall, ringtone } = useApp();
+  const { incomingCall, users, acceptIncomingCall, rejectIncomingCall, ringtone, isInCall, endCall } = useApp();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioError, setAudioError] = useState(false);
 
@@ -121,6 +153,67 @@ const IncomingCallOverlay: React.FC = () => {
 
   const caller = users.find(u => u.id === incomingCall.callerId);
 
+  // Special UI if already in call
+  if (isInCall) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-300">
+        <div className="flex flex-col items-center space-y-6 max-w-md w-full px-6">
+
+          <div className="flex items-center space-x-4 mb-4">
+            <img src={caller?.avatar} alt={caller?.name || 'Unknown'} className="w-16 h-16 rounded-full border-2 border-white/50" />
+            <div className="text-left">
+              <h2 className="text-2xl font-bold text-white mb-1">{caller?.name || 'Unknown Caller'}</h2>
+              <p className="text-white/70 flex items-center gap-2">
+                <PhoneCall size={16} />
+                <span>Is waiting to join...</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-4 w-full backdrop-blur-sm border border-white/10 mb-2">
+            <p className="text-indigo-200 text-center text-sm font-medium">You are currently in a call. New caller wants to join.</p>
+          </div>
+
+          <div className="grid grid-cols-1 w-full gap-3">
+            <button
+              onClick={acceptIncomingCall}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-3"
+            >
+              <div className="bg-white/20 p-1.5 rounded-full">
+                <UserIcon size={18} />
+              </div>
+              Add to Current Call
+            </button>
+
+            <button
+              onClick={() => {
+                // End current, then accept new
+                endCall();
+                // Wait briefly for cleanup? simple timeout or optimistic
+                setTimeout(() => acceptIncomingCall(), 500);
+              }}
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-3"
+            >
+              <div className="bg-white/20 p-1.5 rounded-full">
+                <Phone size={18} />
+              </div>
+              End & Accept New
+            </button>
+
+            <button
+              onClick={rejectIncomingCall}
+              className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold shadow-lg transition-all mt-2"
+            >
+              Decline
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // Standard Incoming Call UI
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-300">
       <div className="flex flex-col items-center space-y-8">
@@ -412,6 +505,7 @@ const MainLayout: React.FC = () => {
   return (
     <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
       <IncomingCallOverlay />
+      <BusyCallModal />
       <GlobalCallManager />
 
       {/* Desktop Sidebar (Hidden on Mobile) */}
