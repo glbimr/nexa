@@ -701,7 +701,14 @@ export const Communication: React.FC = () => {
                 {!isMicOn ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
               <button
-                onClick={toggleScreenShare}
+                onClick={() => {
+                  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                  if (isMobile) {
+                    alert('Screen sharing coming soon for mobile devices');
+                  } else {
+                    toggleScreenShare();
+                  }
+                }}
                 className={`p-3 rounded-full transition-transform hover:scale-110 ${isScreenSharing ? 'bg-blue-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
                 title="Share Screen"
               >

@@ -1777,41 +1777,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           video: {
             // @ts-ignore
             cursor: 'always',
-            height: { ideal: 1080 },
-            frameRate: 30 // Fixed framerate provides better stability than variable max
+            // Increase constraints to prevent downscaling artifacts
+            width: { ideal: 1920, max: 2560 },
+            height: { ideal: 1080, max: 1440 },
+            frameRate: { ideal: 30, max: 60 }
           },
-          audio: false // Explicitly disable audio to avoid mix-ups, or enable if system audio is desired
+          audio: false
         });
         const screenTrack = displayStream.getVideoTracks()[0];
 
-        // 'motion' is often better for general screen sharing (browsing, UI interaction) to avoid stalled frames
-        // 'detail' optimizes for text but can drop frames heavily during transitions, causing "black screen"
-        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'motion';
+        // 'detail' or 'text' ensures the browser prioritizes resolution/sharpness over framerate.
+        // This prevents the "blurry text" glitch often seen when bandwidth fluctuates.
+        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'detail';
 
-        // Critical: degradationPreference 'maintain-resolution' ensures clarity over framerate
-        // This prevents the browser from downscaling the image to keep up with FPS, which causes blurriness.
+        // Critical: degradationPreference 'maintain-resolution' ensures clarity.
+        // If bandwidth drops, FPS will drop, but text remains readable (no blur).
         const settings = screenTrack.getSettings();
         // @ts-ignore
         if (screenTrack.kind === 'video' && typeof screenTrack.contentHint !== 'undefined') {
-          // We can't easily access RTCRtpSender from track alone to set degradationPreference directly here,
-          // but we will do it on the sender below.
+          // handled via sender below
         }
 
         let oldCameraStream: MediaStream | null = null;
 
-        // If camera is on, mark it. We will stop it AFTER replacing tracks to avoid black gap.
+        // 1. Prepare Local State (Make)
+        // We create the new stream wrapper immediately to be ready for the UI update.
+        // Note: We don't stop the old camera YET. This is "Make-Before-Break".
+        const newVideoStream = new MediaStream([screenTrack]);
+
         if (isCameraOn) {
           prevCameraWasOnRef.current = true;
           if (localVideoStreamRef.current) {
             oldCameraStream = localVideoStreamRef.current;
-            // setLocalVideoStream(null); // Don't nullify yet, transition first
           }
           setIsCameraOn(false);
         } else {
           prevCameraWasOnRef.current = false;
         }
 
-        const newVideoStream = new MediaStream([screenTrack]);
+        // 2. Update UI (Switch) -> Flicker Reduction: Do this close to track replacement
         setLocalVideoStream(newVideoStream);
         localVideoStreamRef.current = newVideoStream;
 
