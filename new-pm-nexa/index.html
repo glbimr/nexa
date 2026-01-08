@@ -6,6 +6,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Setu</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            indigo: {
+              50: '#f8f8f8',
+              100: '#f1f1f1',
+              200: '#e1e1e1',
+              300: '#cfcfcf',
+              400: '#a3a3a3',
+              500: '#7a7a7a',
+              600: '#000000', /* Primary Action -> Black */
+              700: '#1a1a1a', /* Hover -> Dark Gray */
+              800: '#262626',
+              900: '#000000',
+              950: '#000000',
+            },
+            slate: {
+              50: '#ffffff', /* Background -> White */
+              100: '#fbfbfb',
+              200: '#f0f0f0',
+              300: '#e0e0e0',
+              400: '#a0a0a0',
+              500: '#6f6f6f',
+              600: '#505050',
+              700: '#333333',
+              800: '#171717', /* Dark Sidebar details */
+              900: '#000000', /* Sidebar Background -> Black */
+              950: '#000000',
+            }
+          }
+        }
+      }
+    }
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
