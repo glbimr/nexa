@@ -1336,6 +1336,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         const newTrack = newAudioStream.getAudioTracks()[0];
 
+        // Re-check devices now that we have permission
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
+        setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
+
         setLocalAudioStream(newAudioStream);
         localAudioStreamRef.current = newAudioStream;
         setIsMicOn(true);
@@ -1472,13 +1477,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             autoGainControl: true
           }
         });
+
+        // Re-check devices now that we have permission
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
+        setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
+
         // Important: Start MUTED by default as per requirement
         stream.getAudioTracks().forEach(t => t.enabled = false);
         setIsMicOn(false);
         setIsCameraOn(false);
       } catch (e) {
         console.error("Error getting user media", e);
-        alert("Could not access microphone. Call cannot start.");
+        alert("Could not access microphone. Call cannot start. Please check your browser permissions.");
         return;
       }
       setLocalStream(stream);
@@ -1553,8 +1564,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               autoGainControl: true
             }
           });
+
+          // Re-check devices now that we have permission
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
+          setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
+
           // Start Muted
-          stream.getAudioTracks().forEach(t => t.enabled = false);
           stream.getAudioTracks().forEach(t => t.enabled = false);
           setLocalStream(stream);
           // Update refs
@@ -1562,7 +1578,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
           setIsMicOn(false);
         }
-        catch (e) { console.error("No audio device found"); return; }
+        catch (e) {
+          console.error("No audio device found", e);
+          alert("Could not access microphone.");
+          return;
+        }
       }
 
       const pc = createPeerConnection(recipientId);
@@ -1589,12 +1609,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               autoGainControl: true
             }
           });
-          // Start Muted
+
+          // Re-check devices now that we have permission
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
+          setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
+
+          // Start Muted: logic updated to ensure track stays 'live' but disabled
+          // Some mobile devices need the track briefly active to bind to hardware?
+          // We set enabled=false which matches the requirement.
           stream.getAudioTracks().forEach(t => t.enabled = false);
           setIsMicOn(false);
           setIsCameraOn(false);
         }
-        catch (e) { console.error("Could not access microphone"); return; }
+        catch (e) {
+          console.error("Could not access microphone", e);
+          alert("Could not access microphone. Please check your browser permissions.");
+          return;
+        }
         setLocalStream(stream);
         // Update refs immediately for safety
         localStreamRef.current = stream;
