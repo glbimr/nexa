@@ -1615,6 +1615,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setIsInCall(true);
+      setActiveTab('chat');
 
       // Update Active Call Data (Merge Logic)
       setActiveCallData(prev => {
