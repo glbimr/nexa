@@ -1629,12 +1629,12 @@ const RemoteVideoPlayer: React.FC<{ stream: MediaStream; isMainStage?: boolean }
     const checkVideoStatus = () => {
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
-        setIsVideoMuted(videoTrack.muted || !videoTrack.enabled);
+        // Only consider the track "muted" (hidden) if it is explicitly disabled by the sender (User clicked "Stop Video").
+        // We ignore 'videoTrack.muted' because that indicates network packet loss (stalls), and we don't want to flash black/hide the video during minor network glitches.
+        setIsVideoMuted(!videoTrack.enabled);
 
-        // Add listeners for dynamic changes
-        videoTrack.onmute = () => setIsVideoMuted(true);
-        videoTrack.onunmute = () => setIsVideoMuted(false);
-        // also listen to ended
+        // Listen for enabled/disabled changes? 
+        // Note: 'onmute' indicates network silence, 'onended' indicates track removal.
         videoTrack.onended = () => setIsVideoMuted(true);
       } else {
         setIsVideoMuted(true);
