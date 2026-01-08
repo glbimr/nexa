@@ -616,8 +616,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     // Optimization: Only the "Host" (us) needs to send this? 
                     // Since we are the hub A, we know both.
 
-                    sendSignal('ADD_TO_CALL', senderId, { targetId: pid });
-                    sendSignal('ADD_TO_CALL', pid, { targetId: senderId });
+                    // Deterministic Initiation to prevent Glare (Double Offer) and BUSY overrides
+                    // Convention: Lower ID initiates the connection.
+                    const shouldSenderInitiate = senderId < pid;
+
+                    sendSignal('ADD_TO_CALL', senderId, { targetId: pid, shouldInitiate: shouldSenderInitiate });
+                    sendSignal('ADD_TO_CALL', pid, { targetId: senderId, shouldInitiate: !shouldSenderInitiate });
                   }
                 });
               }
