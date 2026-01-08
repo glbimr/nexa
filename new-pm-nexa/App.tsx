@@ -182,6 +182,40 @@ const IncomingCallOverlay: React.FC = () => {
   );
 };
 
+// --- Global Audio Handler ---
+// This component ensures audio (and potentially hidden video streams) stays connected
+// even when the user navigates away from the "Chat" tab (which unmounts Communication.tsx).
+const CallAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.srcObject = stream;
+      // Ensure audio is playing
+      audioRef.current.play().catch(e => {
+        // Auto-play policy might block this if no interaction, 
+        // but usually valid during a call flow.
+        console.warn("Global audio play warning:", e);
+      });
+    }
+  }, [stream]);
+
+  return <audio ref={audioRef} autoPlay playsInline controls={false} className="hidden" />;
+};
+
+const GlobalCallManager: React.FC = () => {
+  const { remoteStreams } = useApp();
+  // We map over all remote streams and render a persistent audio player for each.
+  // This runs at the App root level.
+  return (
+    <>
+      {Array.from(remoteStreams.entries()).map(([id, stream]) => (
+        <CallAudioPlayer key={id} stream={stream} />
+      ))}
+    </>
+  );
+};
+
 const MainLayout: React.FC = () => {
   const {
     currentUser, logout, updateUser,
@@ -378,6 +412,7 @@ const MainLayout: React.FC = () => {
   return (
     <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
       <IncomingCallOverlay />
+      <GlobalCallManager />
 
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <aside className={`

@@ -1722,8 +1722,8 @@ const RemoteVideoPlayer: React.FC<{ stream: MediaStream; isMainStage?: boolean }
         ref={videoRef}
         autoPlay
         playsInline
-        // Important: Remote streams must NOT be muted, otherwise you won't hear them.
-        muted={false}
+        // Important: Muted in UI because audio is handled globally in App.tsx to persist across navigation
+        muted={true}
         className={`w-full h-full ${isMainStage ? 'object-contain bg-black' : 'object-cover'} ${!hasVideo ? 'opacity-0' : 'opacity-100'}`}
       />
       {playError && (
