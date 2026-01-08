@@ -1786,12 +1786,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         const screenTrack = displayStream.getVideoTracks()[0];
 
-        // 'detail' or 'text' ensures the browser prioritizes resolution/sharpness over framerate.
-        // This prevents the "blurry text" glitch often seen when bandwidth fluctuates.
-        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'detail';
+        // 'motion' is more resilient to bandwidth drops than 'detail'/'text'.
+        // It prevents the "black screen" gap by allowing some compression artifacts instead of dropping the frame entirely.
+        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'motion';
 
-        // Critical: degradationPreference 'maintain-resolution' ensures clarity.
-        // If bandwidth drops, FPS will drop, but text remains readable (no blur).
+        // Ensure we prioritize smooth playback
         const settings = screenTrack.getSettings();
         // @ts-ignore
         if (screenTrack.kind === 'video' && typeof screenTrack.contentHint !== 'undefined') {
@@ -1830,17 +1829,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await sender.replaceTrack(screenTrack);
 
-              // Set degradation preference to maintain resolution (prevent blurring)
+              // Set degradation preference to 'balanced' to prevent total frame drops (black screen)
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
 
-              // 4.5 Mbps (4500000) provides very high quality 1080p
-              params.encodings[0].maxBitrate = 4500000;
-              // minBitrate removed to fix TS build error
+              // 2.5 Mbps is sufficient for 1080p screen share and much more stable than 4.5 Mbps
+              params.encodings[0].maxBitrate = 2500000;
 
-              // Important: Prioritize resolution (sharpness) over frame rate
+              // 'balanced' allows the browser to reduce resolution or FPS to avoid black screens
               // @ts-ignore
-              params.degradationPreference = 'maintain-resolution';
+              params.degradationPreference = 'balanced';
 
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
@@ -1855,9 +1853,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // Apply quality settings immediately for new tracks too
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
-              params.encodings[0].maxBitrate = 4500000;
+              params.encodings[0].maxBitrate = 2500000;
               // @ts-ignore
-              params.degradationPreference = 'maintain-resolution';
+              params.degradationPreference = 'balanced';
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
 
