@@ -9,13 +9,13 @@ import { TaskStatus, TaskCategory, DashboardWidget, WidgetType, ChartType, Group
 import { Modal } from '../components/Modal';
 
 const COLORS = {
-  blue: '#404040',
-  green: '#171717',
-  red: '#737373',
-  orange: '#d4d4d4',
-  purple: '#525252',
-  indigo: '#000000',
-  slate: '#a3a3a3'
+  blue: '#3b82f6',
+  green: '#22c55e',
+  red: '#ef4444',
+  orange: '#f97316',
+  purple: '#a855f7',
+  indigo: '#6366f1',
+  slate: '#64748b'
 };
 
 const THEME_CLASSES: Record<ColorTheme, { bg: string, text: string }> = {
