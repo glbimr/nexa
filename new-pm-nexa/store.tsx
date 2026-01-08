@@ -176,6 +176,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Queue for offers that arrive while we are already ringing/busy with setup
   const pendingOffersRef = useRef<Map<string, any>>(new Map());
 
+  // Track mesh auto-connections to suppress "User is Busy" modals
+  const autoConnectRetriesRef = useRef<Map<string, number>>(new Map());
+
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -501,7 +504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
               // Only initiate if instructed (prevents Glare / Double Offer)
               if (signalPayload.shouldInitiate) {
-                await initiateCallConnection(signalPayload.targetId, true);
+                await initiateCallConnection(signalPayload.targetId, true, true);
               }
             }
             break;
@@ -549,7 +552,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           case 'BUSY':
             // We called someone, and they are busy
-            setRecipientBusy(senderId);
+            // Check if this was an automatic mesh connection (Add to Call)
+            if (autoConnectRetriesRef.current.has(senderId)) {
+              const retries = autoConnectRetriesRef.current.get(senderId) || 0;
+              if (retries < 3) {
+                console.log(`Auto-connect to ${senderId} was busy (race condition). Retrying in 2s... (${retries + 1}/3)`);
+                autoConnectRetriesRef.current.set(senderId, retries + 1);
+                setTimeout(() => {
+                  initiateCallConnection(senderId, true, true);
+                }, 2000);
+              } else {
+                console.warn(`Auto-connect to ${senderId} failed after retries. Giving up.`);
+                autoConnectRetriesRef.current.delete(senderId);
+              }
+              // Do NOT show the modal
+            } else {
+              // Manual call -> Show modal
+              setRecipientBusy(senderId);
+            }
             break;
 
           case 'WAIT_NOTIFY':
@@ -561,7 +581,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               timestamp: Date.now(),
               offer: pendingOffer ? pendingOffer.sdp : undefined
             });
-            break;
             break;
 
           case 'ANSWER':
@@ -1488,7 +1507,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser || !isInCall || !activeCallData) return;
 
     // 1. Host connects to New User
-    await initiateCallConnection(recipientId, true);
+    await initiateCallConnection(recipientId, true, false); // Host manual add -> isMeshAutoConnect = false (or true? Host shouldn't see busy for new user? Actually Host is explicitly calling, so Seeing busy is ok if new guy is busy.)
+    // Wait, if Host calls New User, and New User is Busy, Host SHOULD see Busy Modal. So keep isMeshAutoConnect = false.
 
     // 2. Host tells ALL existing participants to connect to New User
     activeCallData.participantIds.forEach(existingPid => {
@@ -1500,7 +1520,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveCallData(prev => prev ? { ...prev, participantIds: [...prev.participantIds, recipientId] } : null);
   };
 
-  const initiateCallConnection = async (recipientId: string, isAdding: boolean = false) => {
+  const initiateCallConnection = async (recipientId: string, isAdding: boolean = false, isMeshAutoConnect: boolean = false) => {
+
+    if (isMeshAutoConnect) {
+      // Init retry counter if not present
+      if (!autoConnectRetriesRef.current.has(recipientId)) {
+        autoConnectRetriesRef.current.set(recipientId, 0);
+      }
+    } else {
+      // Manual call, ensure no leftover retry state
+      autoConnectRetriesRef.current.delete(recipientId);
+    }
     // Safety: If we already have a connection, don't overwrite it unless necessary
     if (peerConnectionsRef.current.has(recipientId)) {
       // We might want to check state? If 'closed', allowed.
