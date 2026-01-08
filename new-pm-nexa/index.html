@@ -6,78 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Setu</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    const professionalSlate = {
-      50: '#f8fafc',
-      100: '#f1f5f9',
-      200: '#e2e8f0',
-      300: '#cbd5e1',
-      400: '#94a3b8',
-      500: '#64748b',
-      600: '#475569',
-      700: '#334155',
-      800: '#1e293b',
-      900: '#0f172a',
-      950: '#020617',
-    };
-
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          },
-          colors: {
-            indigo: {
-              50: '#eff4ff',
-              100: '#dbe6fe',
-              200: '#bfd3fe',
-              300: '#93bbfd',
-              400: '#609afa',
-              500: '#3b82f6',
-              600: '#2563eb', // Royal Blue
-              700: '#1d4ed8',
-              800: '#1e40af',
-              900: '#1e3a8a',
-              950: '#172554',
-            },
-            slate: professionalSlate,
-            gray: professionalSlate,
-            zinc: professionalSlate,
-            neutral: professionalSlate,
-          },
-          animation: {
-            'fade-in': 'fadeIn 0.3s ease-in-out',
-            'slide-in': 'slideIn 0.3s ease-out',
-          },
-          keyframes: {
-            fadeIn: {
-              '0%': { opacity: '0' },
-              '100%': { opacity: '1' },
-            },
-            slideIn: {
-              '0%': { transform: 'translateX(-10px)', opacity: '0' },
-              '100%': { transform: 'translateX(0)', opacity: '1' },
-            }
-          }
-        }
-      }
-    }
-  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #f8fafc;
-      /* Matches slate-50 */
-    }
-
-    /* Smooth transitions for all interactive elements */
-    button,
-    a {
-      transition-property: color, background-color, border-color, transform, opacity;
-      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-      transition-duration: 150ms;
     }
 
     /* Custom scrollbar for better aesthetics */
