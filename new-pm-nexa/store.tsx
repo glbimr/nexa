@@ -1887,15 +1887,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Increase constraints to prevent downscaling artifacts
             width: { ideal: 1920, max: 2560 },
             height: { ideal: 1080, max: 1440 },
-            frameRate: { ideal: 30, max: 60 }
+            frameRate: { ideal: 60, max: 60 }
           },
           audio: false
         });
         const screenTrack = displayStream.getVideoTracks()[0];
 
-        // 'motion' is more resilient to bandwidth drops than 'detail'/'text'.
-        // It prevents the "black screen" gap by allowing some compression artifacts instead of dropping the frame entirely.
-        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'motion';
+        // 'detail' ensures the encoder prioritizes sharpness/text legibility over high framerate
+        // This is critical for coding/document sharing.
+        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'detail';
 
         // Ensure we prioritize smooth playback
         const settings = screenTrack.getSettings();
@@ -1937,15 +1937,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               await sender.replaceTrack(screenTrack);
 
               // Set degradation preference to 'balanced' to prevent total frame drops (black screen)
+              // Increase Bitrate for High Quality Screen Share (e.g., 4.5 Mbps)
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
 
-              // 2.5 Mbps is sufficient for 1080p screen share and much more stable than 4.5 Mbps
-              params.encodings[0].maxBitrate = 2500000;
+              params.encodings[0].maxBitrate = 4500000;
 
-              // 'balanced' allows the browser to reduce resolution or FPS to avoid black screens
+              // 'maintain-resolution' ensures that even if bandwidth drops, the text remains sharp (FPS will drop instead)
               // @ts-ignore
-              params.degradationPreference = 'balanced';
+              params.degradationPreference = 'maintain-resolution';
 
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
