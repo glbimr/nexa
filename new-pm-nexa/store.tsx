@@ -492,12 +492,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           case 'ADD_TO_CALL':
             // "Host" told us to connect to a new peer needed for the mesh
             if (currentIsInCall && signalPayload.targetId) {
-              await initiateCallConnection(signalPayload.targetId, true);
+              // Always whitelist the new peer immediately to prevent BUSY rejection for incoming offers
               setActiveCallData(prev => {
                 if (!prev) return null;
                 if (prev.participantIds.includes(signalPayload.targetId)) return prev;
                 return { ...prev, participantIds: [...prev.participantIds, signalPayload.targetId] };
               });
+
+              // Only initiate if instructed (prevents Glare / Double Offer)
+              if (signalPayload.shouldInitiate) {
+                await initiateCallConnection(signalPayload.targetId, true);
+              }
             }
             break;
 
@@ -1592,9 +1597,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (activeCallDataRef.current) {
         activeCallDataRef.current.participantIds.forEach(pid => {
           if (pid !== incomingCall.callerId) {
-            // Ensure both sides connect
-            sendSignal('ADD_TO_CALL', incomingCall.callerId, { targetId: pid });
-            sendSignal('ADD_TO_CALL', pid, { targetId: incomingCall.callerId });
+            // Deterministic Initiation to prevent Glare (Double Offer) and BUSY overrides
+            // Convention: Lower ID initiates the connection.
+            const shouldCallerInitiate = incomingCall.callerId < pid;
+
+            sendSignal('ADD_TO_CALL', incomingCall.callerId, { targetId: pid, shouldInitiate: shouldCallerInitiate });
+            sendSignal('ADD_TO_CALL', pid, { targetId: incomingCall.callerId, shouldInitiate: !shouldCallerInitiate });
           }
         });
       }
