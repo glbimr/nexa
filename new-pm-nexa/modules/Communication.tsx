@@ -6,7 +6,7 @@ import {
   Monitor, PhoneOff, Search, Users, ChevronLeft, ChevronDown, ChevronRight,
   Paperclip, FileText, Image as ImageIcon, X, Plus, Check, BellRing,
   Maximize2, Minimize2, PictureInPicture, UserPlus, Layout, MoreVertical, Trash2,
-  PhoneMissed, Pin, PinOff, Maximize
+  PhoneMissed, Pin, PinOff, Maximize, Smartphone, AlertTriangle
 } from 'lucide-react';
 import { User, Attachment, Group, NotificationType } from '../types';
 import { Modal } from '../components/Modal';
@@ -50,6 +50,7 @@ export const Communication: React.FC = () => {
   const [isAddingMembersToGroup, setIsAddingMembersToGroup] = useState(false);
   const [addMembersSearchTerm, setAddMembersSearchTerm] = useState('');
   const [selectedUserIdsToAdd, setSelectedUserIdsToAdd] = useState<string[]>([]);
+  const [isMobileShareModalOpen, setIsMobileShareModalOpen] = useState(false);
 
   // Video Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -704,7 +705,7 @@ export const Communication: React.FC = () => {
                 onClick={() => {
                   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                   if (isMobile) {
-                    alert('Screen sharing coming soon for mobile devices');
+                    setIsMobileShareModalOpen(true);
                   } else {
                     toggleScreenShare();
                   }
@@ -1609,7 +1610,33 @@ export const Communication: React.FC = () => {
           )}
         </div>
       </Modal>
-    </div >
+
+      {/* Mobile Screen Share Warning Modal */}
+      <Modal
+        isOpen={isMobileShareModalOpen}
+        onClose={() => setIsMobileShareModalOpen(false)}
+        title="Screen Sharing"
+        maxWidth="max-w-md"
+        className="h-auto"
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4 mx-auto">
+            <Smartphone size={24} />
+          </div>
+          <p className="text-center text-slate-600 mb-6 font-medium">
+            Screen sharing is <span className="font-bold text-slate-900">coming soon</span> for mobile devices.
+          </p>
+          <div className="flex justify-center">
+            <button
+              onClick={() => setIsMobileShareModalOpen(false)}
+              className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
   );
 };
 
