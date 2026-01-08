@@ -1660,6 +1660,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const cancelCallWait = () => {
+    if (recipientBusy) {
+      const busyUserId = recipientBusy;
+
+      // Close connection to the busy user
+      const pc = peerConnectionsRef.current.get(busyUserId);
+      if (pc) {
+        pc.close();
+        peerConnectionsRef.current.delete(busyUserId);
+      }
+
+      // If we have no other active connections, end the whole call session (stop camera, etc.)
+      if (peerConnectionsRef.current.size === 0) {
+        cleanupCall();
+      } else {
+        // Otherwise, just remove this user from the active participants list
+        setActiveCallData(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            participantIds: prev.participantIds.filter(id => id !== busyUserId)
+          };
+        });
+      }
+    }
     setRecipientBusy(null);
   };
 
