@@ -1670,18 +1670,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         peerConnectionsRef.current.delete(busyUserId);
       }
 
-      // If we have no other active connections, end the whole call session (stop camera, etc.)
-      if (peerConnectionsRef.current.size === 0) {
+      // Check if we have any OTHER active participants we are trying to reach
+      // using ref to ensure latest state
+      const currentParticipants = activeCallDataRef.current?.participantIds || [];
+      const remaining = currentParticipants.filter(id => id !== busyUserId);
+
+      if (remaining.length === 0) {
+        // No one else in the call -> End everything instantly to return to Chat
         cleanupCall();
       } else {
-        // Otherwise, just remove this user from the active participants list
-        setActiveCallData(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            participantIds: prev.participantIds.filter(id => id !== busyUserId)
-          };
-        });
+        // Others exist, just remove busy user
+        setActiveCallData(prev => prev ? { ...prev, participantIds: remaining } : null);
       }
     }
     setRecipientBusy(null);
