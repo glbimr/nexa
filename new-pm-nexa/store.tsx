@@ -68,7 +68,6 @@ interface AppContextType {
   // Call Logic
   startCall: (recipientId: string) => Promise<void>;
   startGroupCall: (recipientIds: string[]) => Promise<void>;
-  joinMeeting: (recipientIds: string[]) => Promise<void>;
   addToCall: (recipientId: string) => Promise<void>;
   acceptIncomingCall: () => Promise<void>;
   rejectIncomingCall: () => void;
@@ -716,37 +715,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } catch (e) { console.error('Error handling SCREEN_STOPPED', e); }
             break;
           }
-            isSignalingConnectedRef.current = false;
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          isSignalingConnectedRef.current = true;
+          updatePresence();
+          sendSignal('USER_ONLINE', undefined, {});
+        } else {
+          isSignalingConnectedRef.current = false;
         }
       });
-
-    // --- SIGNAL HANDLER EXTENSION FOR JOIN LOGIC ---
-    channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
-      const { type, senderId, recipientId, payload: signalPayload } = payload as SignalData;
-      if (recipientId && recipientId !== currentUser.id && type !== 'USER_ONLINE') return;
-      if (senderId === currentUser.id) return;
-
-      const currentIsInCall = isInCallRef.current;
-      // Only process JOIN signals if we are in a call
-      if (!currentIsInCall && (type === 'JOIN_CHECK' || type === 'JOIN_ACK')) return;
-
-      if (type === 'JOIN_CHECK') {
-        // Someone joined and is announcing presence.
-        // Ensure they are part of our current participant list (or we are promiscuous for now)
-        // Tie-break: Low ID initiates OFFER. High ID sends ACK.
-        if (currentUser.id < senderId) {
-          initiateCallConnection(senderId, true, true);
-        } else {
-          sendSignal('JOIN_ACK', senderId, {});
-        }
-      } else if (type === 'JOIN_ACK') {
-        // They acknowledged our presence.
-        // If we are Low ID, we should OFFER.
-        if (currentUser.id < senderId) {
-          initiateCallConnection(senderId, true, true);
-        }
-      }
-    });
 
     // Activity listener to track "Active Now" accurately
     const onVisibilityChange = () => updatePresence();
@@ -1539,43 +1518,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const joinMeeting = async (recipientIds: string[]) => {
-    if (!currentUser || recipientIds.length === 0) return;
-
-    let stream = localStream;
-    if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
-        setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
-
-        // Start Muted/Video Off by default
-        stream.getAudioTracks().forEach(t => t.enabled = false);
-        setIsMicOn(false);
-        setIsCameraOn(false);
-      } catch (e) {
-        console.error("Error getting user media", e);
-        alert("Could not access microphone.");
-        return;
-      }
-      setLocalStream(stream);
-      localStreamRef.current = stream;
-      if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
-    }
-
-    setIsInCall(true);
-    setActiveCallData({ participantIds: recipientIds });
-
-    // Do NOT send offers. Broadcast presence.
-    recipientIds.forEach(id => {
-      sendSignal('JOIN_CHECK', id, {});
-    });
-  };
-
   const addToCall = async (recipientId: string) => {
     if (!currentUser || !isInCall || !activeCallData) return;
 
@@ -2133,8 +2075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteMeeting: async (id: string) => {
         const { error } = await supabase.from('meetings').delete().eq('id', id);
         if (error) console.error("Delete meeting failed:", error);
-      },
-      joinMeeting
+      }
     }}>
       {children}
     </AppContext.Provider>
