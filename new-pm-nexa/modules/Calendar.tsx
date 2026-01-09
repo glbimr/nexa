@@ -17,12 +17,13 @@ import {
     CalendarCheck2,
     Pencil,
     BellRing,
-    AlertTriangle
+    AlertTriangle,
+    Video
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 
 export const Calendar: React.FC = () => {
-    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification } = useApp();
+    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification, startGroupCall } = useApp();
 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -627,6 +628,22 @@ export const Calendar: React.FC = () => {
                         </div>
 
                         <button
+                            onClick={() => {
+                                const recipients = [viewingMeeting.creator_id, ...viewingMeeting.participant_ids].filter(id => id !== currentUser?.id);
+                                if (recipients.length > 0) {
+                                    startGroupCall(recipients);
+                                    setViewingMeeting(null);
+                                } else {
+                                    alert("No other participants to call.");
+                                }
+                            }}
+                            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 text-sm flex items-center justify-center mb-3"
+                        >
+                            <Video size={18} className="mr-2" />
+                            Join Meeting
+                        </button>
+
+                        <button
                             onClick={() => setViewingMeeting(null)}
                             className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-lg text-sm"
                         >
@@ -728,6 +745,21 @@ export const Calendar: React.FC = () => {
                                 className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all text-sm"
                             >
                                 Dismiss
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const recipients = [reminderMeeting.creator_id, ...reminderMeeting.participant_ids].filter(id => id !== currentUser?.id);
+                                    if (recipients.length > 0) {
+                                        startGroupCall(recipients);
+                                        setReminderMeeting(null);
+                                    } else {
+                                        alert("No other participants to call.");
+                                    }
+                                }}
+                                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 text-sm flex items-center justify-center"
+                            >
+                                <Video size={16} className="mr-1" />
+                                Join
                             </button>
                             <button
                                 onClick={() => { setViewingMeeting(reminderMeeting); setReminderMeeting(null); }}
