@@ -23,7 +23,7 @@ import {
 import { Modal } from '../components/Modal';
 
 export const Calendar: React.FC = () => {
-    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification, startGroupCall } = useApp();
+    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification, joinMeeting } = useApp();
 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -631,10 +631,10 @@ export const Calendar: React.FC = () => {
                             onClick={() => {
                                 const recipients = [viewingMeeting.creator_id, ...viewingMeeting.participant_ids].filter(id => id !== currentUser?.id);
                                 if (recipients.length > 0) {
-                                    startGroupCall(recipients);
+                                    joinMeeting(recipients);
                                     setViewingMeeting(null);
                                 } else {
-                                    alert("No other participants to call.");
+                                    alert("No other participants to meeting.");
                                 }
                             }}
                             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 text-sm flex items-center justify-center mb-3"
@@ -750,10 +750,10 @@ export const Calendar: React.FC = () => {
                                 onClick={() => {
                                     const recipients = [reminderMeeting.creator_id, ...reminderMeeting.participant_ids].filter(id => id !== currentUser?.id);
                                     if (recipients.length > 0) {
-                                        startGroupCall(recipients);
+                                        joinMeeting(recipients);
                                         setReminderMeeting(null);
                                     } else {
-                                        alert("No other participants to call.");
+                                        alert("No other participants to meeting.");
                                     }
                                 }}
                                 className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 text-sm flex items-center justify-center"
