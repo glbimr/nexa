@@ -179,6 +179,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Track mesh auto-connections to suppress "User is Busy" modals
   const autoConnectRetriesRef = useRef<Map<string, number>>(new Map());
 
+  // Synchronous whitelist for mesh participants to avoid Race Conditions between ADD_TO_CALL and OFFER
+  const meshIntendedParticipantsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -495,6 +498,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           case 'ADD_TO_CALL':
             // "Host" told us to connect to a new peer needed for the mesh
             if (currentIsInCall && signalPayload.targetId) {
+              // Synchronously whitelist this ID
+              meshIntendedParticipantsRef.current.add(signalPayload.targetId);
+
               // Always whitelist the new peer immediately to prevent BUSY rejection for incoming offers
               setActiveCallData(prev => {
                 if (!prev) return null;
@@ -515,21 +521,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (currentIsInCall) {
               // Check if sender is already a participant (Renegotiation)
               const isExistingParticipant = activeCallDataRef.current?.participantIds.includes(senderId);
+              const isIntendedParticipant = meshIntendedParticipantsRef.current.has(senderId);
 
-              if (isExistingParticipant) {
-                // Standard Renegotiation logic
+              if (isExistingParticipant || isIntendedParticipant) {
+                // Standard Renegotiation logic or Accepted Mesh Join
                 let pc = peerConnectionsRef.current.get(senderId);
                 if (!pc) {
                   // Should exist if participant, but handle edge case
                   let stream = localStreamRef.current || localAudioStreamRef.current;
                   pc = createPeerConnection(senderId);
-                  if (stream) stream.getTracks().forEach(track => pc!.addTrack(track, stream!));
+
+                  // Ensure we add tracks!
+                  if (stream) {
+                    stream.getTracks().forEach(track => {
+                      // Avoid adding duplicate tracks if PC recycled (unlikely here as !pc)
+                      pc!.addTrack(track, stream!);
+                    });
+                  }
                 }
                 if (pc) {
+                  // Clean up pending offers logic for this user if we are accepting now
+                  pendingOffersRef.current.delete(senderId);
+
+                  // Reset retry logic if we are accepting
+                  autoConnectRetriesRef.current.delete(senderId);
+
                   await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
-                  const answer = await pc.createAnswer();
-                  await pc.setLocalDescription(answer);
-                  sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
+                  // If we are "Passively" accepting (we didn't initiate), we must Answer.
+                  if (pc.signalingState === 'have-remote-offer') {
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
+                  }
+
+                  // Ensure we add to active list if not already (for the 'isIntended' case)
+                  if (!isExistingParticipant) {
+                    setActiveCallData(prev => {
+                      if (!prev) return null;
+                      if (prev.participantIds.includes(senderId)) return prev;
+                      return { ...prev, participantIds: [...prev.participantIds, senderId] };
+                    });
+                  }
                 }
               } else {
                 // New caller trying to interrupt/join -> Send BUSY

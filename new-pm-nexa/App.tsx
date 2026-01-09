@@ -293,7 +293,7 @@ const CallAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
     }
   }, [stream]);
 
-  return <audio ref={audioRef} autoPlay playsInline controls={false} className="hidden" />;
+  return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />;
 };
 
 const GlobalCallManager: React.FC = () => {
