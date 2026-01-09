@@ -17,13 +17,12 @@ import {
     CalendarCheck2,
     Pencil,
     BellRing,
-    AlertTriangle,
-    Video
+    AlertTriangle
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 
 export const Calendar: React.FC = () => {
-    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification, startGroupCall, joinScheduledMeeting, setActiveTab } = useApp();
+    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification } = useApp();
 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -628,21 +627,8 @@ export const Calendar: React.FC = () => {
                         </div>
 
                         <button
-                            onClick={() => {
-                                const participantsToCall = [viewingMeeting.creator_id, ...viewingMeeting.participant_ids].filter(id => id !== currentUser?.id);
-                                setActiveTab('chat');
-                                joinScheduledMeeting(viewingMeeting.id, participantsToCall);
-                                setViewingMeeting(null);
-                            }}
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-100 text-sm flex items-center justify-center mb-3"
-                        >
-                            <Video size={18} className="mr-2" />
-                            Join Meeting
-                        </button>
-
-                        <button
                             onClick={() => setViewingMeeting(null)}
-                            className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all shadow-sm text-sm"
+                            className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-lg text-sm"
                         >
                             Close
                         </button>
