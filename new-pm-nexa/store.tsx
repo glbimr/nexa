@@ -68,6 +68,7 @@ interface AppContextType {
   // Call Logic
   startCall: (recipientId: string) => Promise<void>;
   startGroupCall: (recipientIds: string[]) => Promise<void>;
+  joinScheduledMeeting: (meetingId: string, participantIds: string[]) => Promise<void>;
   addToCall: (recipientId: string) => Promise<void>;
   acceptIncomingCall: () => Promise<void>;
   rejectIncomingCall: () => void;
@@ -118,7 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Call State
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [isInCall, setIsInCall] = useState(false);
-  const [activeCallData, setActiveCallData] = useState<{ participantIds: string[] } | null>(null);
+  const [activeCallData, setActiveCallData] = useState<{ participantIds: string[], meetingId?: string } | null>(null);
   const [recipientBusy, setRecipientBusy] = useState<string | null>(null);
   const tempOfferRef = useRef<any>(null); // Store offer while waiting for BUSY decision
 
@@ -638,6 +639,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   console.error("Error adding ice candidate", e);
                 }
               }
+            }
+            break;
+
+          case 'CHECK_MEETING_PRESENCE':
+            // Payload: { meetingId }
+            // Logic: If I am currently in a call AND my activeCallData.meetingId matches,
+            // Then I am PRESENT in this meeting.
+            // I should reply or initiated connection.
+            if (isInCallRef.current && activeCallDataRef.current?.meetingId === signalPayload.meetingId) {
+              // I am in the meeting. The sender just joined.
+              // I should introduce myself (Initiate connection).
+              // Or I can reply "I_AM_HERE", but easier to just initiate connection logic if not connected.
+
+              console.log(`Received CHECK_MEETING_PRESENCE from ${senderId} for meeting ${signalPayload.meetingId}. I am here.`);
+
+              // Add sender to my participant list if not there
+              if (activeCallDataRef.current) {
+                const isAlreadyParticipant = activeCallDataRef.current.participantIds.includes(senderId);
+
+                if (!isAlreadyParticipant) {
+                  setActiveCallData(prev => {
+                    if (!prev) return null; // Should not happen if isInCallRef is true
+                    return { ...prev, participantIds: [...prev.participantIds, senderId] };
+                  });
+                }
+              }
+
+              // Initiate Connection (Manual Call logic, but silent)
+              // Use initiateCallConnection with isMeshAutoConnect=true to suppress busy modal?
+              // Actually, since we know they are joining, we just call them.
+              initiateCallConnection(senderId, true, true);
             }
             break;
 
@@ -1467,12 +1499,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const startGroupCall = async (recipientIds: string[]) => {
-    if (!currentUser || recipientIds.length === 0) return;
+    // Legacy direct call for Chat
+    await startCallCommon(recipientIds);
+  };
+
+  const joinScheduledMeeting = async (meetingId: string, participantIds: string[]) => {
+    // 1. Enter Call State locally
+    await startCallCommon(participantIds, meetingId);
+
+    // 2. Broadcast Presence Check to all participants
+    // We don't "Ring" them. We just ask "Are you in Meeting X?"
+    participantIds.forEach(pid => {
+      if (pid !== currentUser?.id) {
+        sendSignal('CHECK_MEETING_PRESENCE', pid, { meetingId });
+      }
+    });
+  };
+
+  const startCallCommon = async (recipientIds: string[], meetingId?: string) => {
+    if (!currentUser) return;
 
     let stream = localStream;
     if (!stream) {
       try {
-        // Start with Audio ON (permission wise) but Muted, Video OFF
         stream = await navigator.mediaDevices.getUserMedia({
           video: false,
           audio: {
@@ -1482,12 +1531,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // Re-check devices now that we have permission
         const devices = await navigator.mediaDevices.enumerateDevices();
         setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
         setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-        // Important: Start MUTED by default as per requirement
         stream.getAudioTracks().forEach(t => t.enabled = false);
         setIsMicOn(false);
         setIsCameraOn(false);
@@ -1497,25 +1544,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       setLocalStream(stream);
-      // Update refs
       localStreamRef.current = stream;
       if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
     }
 
     setIsInCall(true);
-    setActiveCallData({ participantIds: recipientIds });
+    setActiveCallData({ participantIds: recipientIds, meetingId });
 
-    recipientIds.forEach(async (recipientId) => {
-      try {
-        const pc = createPeerConnection(recipientId);
-        stream!.getTracks().forEach(track => pc.addTrack(track, stream!));
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-        await pc.setLocalDescription(offer);
-        sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
-      } catch (e) {
-        console.error(`Failed to call ${recipientId}`, e);
-      }
-    });
+    // Only for direct group calls (no meeting ID), we ring immediately
+    if (!meetingId) {
+      recipientIds.forEach(async (recipientId) => {
+        try {
+          const pc = createPeerConnection(recipientId);
+          stream!.getTracks().forEach(track => pc.addTrack(track, stream!));
+          const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+          await pc.setLocalDescription(offer);
+          sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
+        } catch (e) {
+          console.error(`Failed to call ${recipientId}`, e);
+        }
+      });
+    }
   };
 
   const addToCall = async (recipientId: string) => {
@@ -1764,7 +1813,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const endCall = () => {
     if (activeCallData && currentUser) {
-      activeCallData.participantIds.forEach(pid => { sendSignal('HANGUP', pid, {}); });
+      activeCallData.participantIds.forEach(pid => {
+        // Only notify if we are in a direct call or if they initiated the meeting join?
+        // Actually, for direct calls, we send HANGUP.
+        // For Meeting mode, we still send HANGUP so they remove us from their peer list.
+        sendSignal('HANGUP', pid, {});
+      });
     }
     cleanupCall();
   };
@@ -2046,7 +2100,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       selectedTaskId, setSelectedTaskId,
       markChatRead, getUnreadCount, totalUnreadChatCount,
       activeTab, setActiveTab,
-      startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
+      startCall, startGroupCall, joinScheduledMeeting, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
       recipientBusy, waitToCall, cancelCallWait,
       ringtone, setRingtone,
       meetings,

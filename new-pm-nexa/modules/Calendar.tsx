@@ -23,7 +23,7 @@ import {
 import { Modal } from '../components/Modal';
 
 export const Calendar: React.FC = () => {
-    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification, startGroupCall, setActiveTab } = useApp();
+    const { users, currentUser, meetings, addMeeting, updateMeeting, deleteMeeting, triggerNotification, startGroupCall, joinScheduledMeeting, setActiveTab } = useApp();
 
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -631,7 +631,7 @@ export const Calendar: React.FC = () => {
                             onClick={() => {
                                 const participantsToCall = [viewingMeeting.creator_id, ...viewingMeeting.participant_ids].filter(id => id !== currentUser?.id);
                                 setActiveTab('chat');
-                                startGroupCall(participantsToCall);
+                                joinScheduledMeeting(viewingMeeting.id, participantsToCall);
                                 setViewingMeeting(null);
                             }}
                             className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-100 text-sm flex items-center justify-center mb-3"
