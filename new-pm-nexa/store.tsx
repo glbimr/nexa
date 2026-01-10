@@ -91,6 +91,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' }
   ]
 };
@@ -176,6 +179,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Queue for offers that arrive while we are already ringing/busy with setup
   const pendingOffersRef = useRef<Map<string, any>>(new Map());
 
+  // Queue for ICE candidates that arrive before PC is ready or Remote Description is set
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+
   // Track mesh auto-connections to suppress "User is Busy" modals
   const autoConnectRetriesRef = useRef<Map<string, number>>(new Map());
 
@@ -185,6 +191,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  // helper to process queued candidates
+  const processQueuedCandidates = async (pc: RTCPeerConnection, senderId: string) => {
+    const queued = pendingCandidatesRef.current.get(senderId);
+    if (queued && queued.length > 0) {
+      console.log(`Processing ${queued.length} queued candidates for ${senderId}`);
+      for (const candidate of queued) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error(`Error processing queued candidate for ${senderId}`, e);
+        }
+      }
+      pendingCandidatesRef.current.delete(senderId);
+    }
+  };
+
+
 
   // IDs of users currently active (via Supabase Presence)
   const [presentIds, setPresentIds] = useState<Set<string>>(new Set());
@@ -547,6 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   autoConnectRetriesRef.current.delete(senderId);
 
                   await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
+                  processQueuedCandidates(pc, senderId); // Flush candidates after setting Remote Description
                   // If we are "Passively" accepting (we didn't initiate), we must Answer.
                   if (pc.signalingState === 'have-remote-offer') {
                     const answer = await pc.createAnswer();
@@ -620,6 +645,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const pc = peerConnectionsRef.current.get(senderId);
               if (pc) {
                 await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
+                processQueuedCandidates(pc, senderId); // Flush candidates after setting processing Answer
+
                 setActiveCallData(prev => {
                   if (!prev) return null;
                   if (prev.participantIds.includes(senderId)) return prev;
@@ -662,13 +689,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           case 'CANDIDATE':
             {
+              // Robust Candidate Handling: Queue if PC doesn't exist OR Remote Description isn't set yet.
+              // This is critical for preventing candidates from being dropped during the initial connection handshake.
               const pc = peerConnectionsRef.current.get(senderId);
-              if (pc && signalPayload.candidate) {
+              if (pc && pc.remoteDescription) {
                 try {
                   await pc.addIceCandidate(new RTCIceCandidate(signalPayload.candidate));
                 } catch (e) {
                   console.error("Error adding ice candidate", e);
                 }
+              } else {
+                if (!pendingCandidatesRef.current.has(senderId)) pendingCandidatesRef.current.set(senderId, []);
+                pendingCandidatesRef.current.get(senderId)!.push(signalPayload.candidate);
               }
             }
             break;
@@ -1677,6 +1709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (incomingCall.offer) {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+        processQueuedCandidates(pc, incomingCall.callerId); // Flush candidates after setting Remote Description
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         sendSignal('ANSWER', incomingCall.callerId, { sdp: { type: answer.type, sdp: answer.sdp } });
@@ -1837,6 +1870,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsMicOn(false);
     setIsCameraOn(false);
     pendingOffersRef.current.clear();
+    pendingCandidatesRef.current.clear();
   };
 
   const stopScreenSharing = async () => {
