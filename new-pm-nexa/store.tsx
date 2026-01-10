@@ -1551,9 +1551,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
         setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-        // Start with Audio ON by default
-        stream.getAudioTracks().forEach(t => t.enabled = true);
-        setIsMicOn(true);
+        // Start MUTED by default
+        stream.getAudioTracks().forEach(t => t.enabled = false);
+        setIsMicOn(false);
         setIsCameraOn(false);
       } catch (e) {
         console.error("Error getting user media", e);
@@ -1638,13 +1638,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
           setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-          // Start with Audio ON
-          stream.getAudioTracks().forEach(t => t.enabled = true);
+          // Start Muted
+          stream.getAudioTracks().forEach(t => t.enabled = false);
           setLocalStream(stream);
           // Update refs
           localStreamRef.current = stream;
           if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
-          setIsMicOn(true);
+          setIsMicOn(false);
         }
         catch (e) {
           console.error("No audio device found", e);
@@ -1683,9 +1683,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
           setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-          // Start with Audio ON by default for smooth experience
-          stream.getAudioTracks().forEach(t => t.enabled = true);
-          setIsMicOn(true);
+          // Start Muted by default
+          stream.getAudioTracks().forEach(t => t.enabled = false);
+          setIsMicOn(false);
           setIsCameraOn(false);
           setIsCameraOn(false);
         }
