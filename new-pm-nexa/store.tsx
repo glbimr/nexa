@@ -1987,18 +1987,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           video: {
             // @ts-ignore
             cursor: 'always',
-            // Increase constraints to prevent downscaling artifacts
-            width: { ideal: 1920, max: 2560 },
-            height: { ideal: 1080, max: 1440 },
-            frameRate: { ideal: 60, max: 60 }
+            // Increase constraints for 4K Screen Sharing
+            width: { ideal: 3840, max: 3840 },
+            height: { ideal: 2160, max: 2160 },
+            frameRate: { ideal: 30, max: 60 }
           },
           audio: false
         });
         const screenTrack = displayStream.getVideoTracks()[0];
 
-        // 'detail' ensures the encoder prioritizes sharpness/text legibility over high framerate
-        // This is critical for coding/document sharing.
-        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'detail';
+        // 'text' ensures the encoder prioritizes sharpness/text legibility
+        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'text';
 
         // Ensure we prioritize smooth playback
         const settings = screenTrack.getSettings();
@@ -2039,16 +2038,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await sender.replaceTrack(screenTrack);
 
-              // Set degradation preference to 'balanced' to prevent total frame drops (black screen)
-              // Increase Bitrate for High Quality Screen Share (e.g., 4.5 Mbps)
+              // High Quality 4K Settings: 10 Mbps
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
 
-              params.encodings[0].maxBitrate = 2500000;
+              params.encodings[0].maxBitrate = 10000000;
 
-              // 'balanced' prevents black screens by allowing resolution to drop continuously if needed.
+              // 'maintain-resolution' ensures that even if bandwidth drops, the text remains sharp (FPS will drop instead)
+              // This is critical for 4K.
               // @ts-ignore
-              params.degradationPreference = 'balanced';
+              params.degradationPreference = 'maintain-resolution';
 
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
@@ -2063,9 +2062,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // Apply quality settings immediately for new tracks too
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
-              params.encodings[0].maxBitrate = 2500000;
+              params.encodings[0].maxBitrate = 10000000;
               // @ts-ignore
-              params.degradationPreference = 'balanced';
+              params.degradationPreference = 'maintain-resolution';
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
 
