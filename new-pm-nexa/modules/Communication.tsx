@@ -1684,9 +1684,10 @@ const RemoteVideoPlayer: React.FC<{ stream: MediaStream; isMainStage?: boolean }
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
-      // Force unmuted and max volume to ensure audio plays
-      videoRef.current.muted = false;
-      videoRef.current.volume = 1.0;
+      // Mute the video element because global audio is handled by CallAudioPlayer in App.tsx
+      // This prevents echo/double audio and ensures persistent audio across tabs.
+      videoRef.current.muted = true;
+      // videoRef.current.volume = 1.0; // Irrelevant if muted
 
       // Explicitly call play to ensure audio/video starts
       const playPromise = videoRef.current.play();

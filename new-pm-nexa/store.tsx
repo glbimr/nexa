@@ -2044,11 +2044,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
 
-              params.encodings[0].maxBitrate = 4500000;
+              params.encodings[0].maxBitrate = 2500000;
 
-              // 'maintain-resolution' ensures that even if bandwidth drops, the text remains sharp (FPS will drop instead)
+              // 'balanced' prevents black screens by allowing resolution to drop continuously if needed.
               // @ts-ignore
-              params.degradationPreference = 'maintain-resolution';
+              params.degradationPreference = 'balanced';
 
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
