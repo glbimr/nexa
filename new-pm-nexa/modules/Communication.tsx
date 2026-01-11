@@ -6,7 +6,7 @@ import {
   Monitor, PhoneOff, Search, Users, ChevronLeft, ChevronDown, ChevronRight,
   Paperclip, FileText, Image as ImageIcon, X, Plus, Check, BellRing,
   Maximize2, Minimize2, PictureInPicture, UserPlus, Layout, MoreVertical, Trash2,
-  PhoneMissed, Pin, PinOff, Maximize, Smartphone, AlertTriangle
+  PhoneMissed, Pin, PinOff, Maximize, Smartphone, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { User, Attachment, Group, NotificationType } from '../types';
 import { Modal } from '../components/Modal';
@@ -714,6 +714,13 @@ export const Communication: React.FC = () => {
                 title="Share Screen"
               >
                 <Monitor size={20} />
+              </button>
+              <button
+                onClick={() => setViewMode('pip')}
+                className="p-3 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-transform hover:scale-110"
+                title="Chat"
+              >
+                <MessageSquare size={20} />
               </button>
               <div className="w-px h-8 bg-slate-700 mx-2"></div>
               <button onClick={() => setIsInviteModalOpen(true)} className="p-3 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg transition-transform hover:scale-110" title="Add People"><UserPlus size={20} /></button>
