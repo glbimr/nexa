@@ -1299,7 +1299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let query = supabase.from('messages').update({ is_read: true }).neq('sender_id', currentUser.id).eq('is_read', false);
 
       if (chatId === 'general') {
-        // General Chat
+        // General Chat - Handle NULL recipient
         query = query.is('recipient_id', null);
       } else if (chatId.startsWith('g-')) {
         // Group Chat
@@ -1324,7 +1324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (m.isRead) return false; // Already read
 
       if (chatId === 'general') {
-        // Global chat: User is NOT the sender
+        // Global chat: User is NOT the sender and there is NO recipientId
         return !m.recipientId && m.senderId !== currentUser.id;
       }
       if (chatId.startsWith('g-')) {
@@ -1332,17 +1332,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return m.recipientId === chatId && m.senderId !== currentUser.id;
       }
       // DM
-      return m.senderId === chatId && m.senderId !== currentUser.id; // Corrected logic: Sender is the Chat Partner, User is recipient
+      return m.senderId === chatId && m.recipientId === currentUser.id;
     }).length;
   };
 
+  // Optimized Total Unread Count
+  // Iterate messages ONCE rather than iterating all users/groups.
+  // This ensures we catch unread messages even from users not currently in the 'users' list.
   const totalUnreadChatCount = React.useMemo(() => {
     if (!currentUser) return 0;
-    let count = getUnreadCount('general');
-    groups.forEach(g => { if (g.memberIds.includes(currentUser.id)) count += getUnreadCount(g.id); });
-    users.forEach(u => { if (u.id !== currentUser.id) count += getUnreadCount(u.id); });
+
+    let count = 0;
+    messages.forEach(m => {
+      // 1. Skip if Deleted or Read or Sent by Me
+      if (deletedMessageIds.has(m.id)) return;
+      if (m.isRead) return;
+      if (m.senderId === currentUser.id) return;
+
+      // 2. Classify Message
+      if (!m.recipientId) {
+        // General Chat
+        count++;
+      } else if (m.recipientId.startsWith('g-')) {
+        // Group Chat (Only if I am a member)
+        // We need to check group membership to show relevant badge
+        const group = groups.find(g => g.id === m.recipientId);
+        if (group && group.memberIds.includes(currentUser.id)) {
+          count++;
+        }
+      } else if (m.recipientId === currentUser.id) {
+        // DM to Me
+        count++;
+      }
+    });
     return count;
-  }, [messages, lastReadTimestamps, currentUser, groups, users, deletedMessageIds]); // Added deletedMessageIds dep
+  }, [messages, currentUser, groups, deletedMessageIds]);
 
   // --- Clear Chat History Logic ---
   const clearChatHistory = async (targetId: string) => {
