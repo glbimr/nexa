@@ -668,7 +668,9 @@ const MainLayout: React.FC = () => {
             </div>
 
             <h3 className="text-lg font-bold text-slate-800 text-center mb-0.5 mt-2 truncate w-full px-2">{currentUser.name}</h3>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-6 bg-slate-200/50 px-2 py-0.5 rounded-full">{currentUser.role}</p>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 bg-slate-200/50 px-2 py-0.5 rounded-full">{currentUser.role}</p>
+            {currentUser.designation && <p className="text-xs text-indigo-600 font-medium mb-6">{currentUser.designation}</p>}
+            {!currentUser.designation && <div className="mb-6"></div>}
 
             <input
               type="file"

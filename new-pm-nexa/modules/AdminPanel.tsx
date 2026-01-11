@@ -224,6 +224,7 @@ export const AdminPanel: React.FC = () => {
                     <th className="px-6 py-4 font-semibold text-slate-700 w-[40%]">User</th>
                     <th className="hidden md:table-cell px-6 py-4 font-semibold text-slate-700">Username</th>
                     <th className="px-6 py-4 font-semibold text-slate-700 w-[20%]">Role</th>
+                    <th className="hidden md:table-cell px-6 py-4 font-semibold text-slate-700">Designation</th>
                     <th className="px-6 py-4 font-semibold text-slate-700 text-right w-[20%]">Actions</th>
                   </tr>
                 </thead>
@@ -243,7 +244,9 @@ export const AdminPanel: React.FC = () => {
                           {user.role === UserRole.ADMIN ? <Shield size={10} className="mr-1" /> : <UserIcon size={10} className="mr-1" />}
                           {user.role}
                         </span>
-                        {user.designation && <div className="text-xs text-slate-500 mt-1">{user.designation}</div>}
+                      </td>
+                      <td className="hidden md:table-cell px-6 py-4 text-slate-500 text-sm">
+                        {user.designation || '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-1">
