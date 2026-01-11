@@ -687,6 +687,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             break;
 
+          case 'DROP_PARTICIPANT':
+            {
+              const targetId = signalPayload.targetId;
+              if (targetId) {
+                if (targetId === currentUser.id) {
+                  // I am being dropped/timed-out by the host/others
+                  console.log("Received DROP_PARTICIPANT for ME. Ending call.");
+                  endCall();
+                } else {
+                  // Someone else is being dropped
+                  console.log("Received DROP_PARTICIPANT for", targetId);
+                  handleRemoteHangup(targetId);
+                }
+              }
+            }
+            break;
+
           case 'CANDIDATE':
             {
               // Robust Candidate Handling: Queue if PC doesn't exist OR Remote Description isn't set yet.
@@ -1348,11 +1365,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
           });
 
-          // Optionally notify others? 
-          // If we initiated the add, maybe we should tell others "HANGUP" for this user?
-          // But since everyone runs this logic, eventually everyone drops them. 
-          // However, to make it instant for others if *I* am the main inviter:
-          // We can send a cleanup signal. But relying on distributed timeout is cleaner/less race-conflicts.
+          // Broadcast removal to others (Sync state)
+          // If we detect a timeout, we assume they are unresponsive for everyone.
+          const currentCall = activeCallDataRef.current;
+          if (currentCall) {
+            currentCall.participantIds.forEach(pid => {
+              if (pid !== recipientId && pid !== currentUser?.id) {
+                sendSignal('DROP_PARTICIPANT', pid, { targetId: recipientId });
+              }
+            });
+          }
         }
       }
     }, 15000);
