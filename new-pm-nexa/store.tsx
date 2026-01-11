@@ -429,31 +429,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // --- INCOMING MESSAGE SOUND LOGIC ---
             // Only play if:
             // 1. We are NOT the sender
-            // 2. Chat is NOT currently focused (Global Active Tab != 'chat' OR focused ID != sender)
+            // 2. Chat is NOT currently focused (so Red Dot would appear)
             if (currentUser && mapped.senderId !== currentUser.id) {
-              const currentTab = window.localStorage.getItem('nexus_pm_active_tab'); // OR use state? State is reliable inside component, but we are in effect. Ref is better?
-              // Actually we have activeTab in state, but need Ref for up-to-date access in closure?
-              // No, we can assume 'chat' tab status if we had a ref. 
-              // BUT strict requirement: "when that particular chatbox is not opened"
+              let messageChatId = mapped.senderId; // Default to sender for DM
 
-              // We have selectedChatIdRef.
-              // We assume 'activeTab' is also available via Ref or just logic. 
-              // Wait, activeTab is state. If effect depends on it, it re-subs. 
-              // Let's add activeTabRef if needed, or just play sound if selectedChatIdRef DOES NOT match.
+              if (!mapped.recipientId) {
+                messageChatId = 'general';
+              } else if (mapped.recipientId.startsWith('g-')) {
+                messageChatId = mapped.recipientId;
+              }
+              // else DM: messageChatId is senderId.
 
-              const isChatFocused = selectedChatIdRef.current === mapped.senderId || selectedChatIdRef.current === mapped.recipientId; // RecipientId check for groups?
-              // For Groups: recipientId is the Group ID.
-              // For DMs: senderId is the User ID.
-
-              const isGroupMsg = mapped.recipientId && mapped.recipientId.startsWith('g-');
-              const relevantId = isGroupMsg ? mapped.recipientId : mapped.senderId;
-
-              const isFocused = selectedChatIdRef.current === relevantId;
-
-              // Also check if document is visible? WhatsApp plays sound even if visible but different chat.
-              // So: If !isFocused -> Play.
+              // Check if we are currently looking at this chat
+              const isFocused = selectedChatIdRef.current === messageChatId;
 
               if (!isFocused) {
+                // Play Sound
                 const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354.wav'); // "Pop" sound
                 audio.volume = 0.5;
                 audio.play().catch(e => console.error("Msg sound blocked", e));
