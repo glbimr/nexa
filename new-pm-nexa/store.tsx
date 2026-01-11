@@ -869,6 +869,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       password: user.password,
       role: user.role,
       avatar: user.avatar,
+      designation: user.designation,
       project_access: user.projectAccess,
       dashboard_config: user.dashboardConfig
     });
@@ -882,6 +883,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       password: u.password,
       role: u.role,
       avatar: u.avatar,
+      designation: u.designation,
       project_access: u.projectAccess,
       dashboard_config: u.dashboardConfig
     }).eq('id', u.id);

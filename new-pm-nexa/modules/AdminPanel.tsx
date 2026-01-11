@@ -26,6 +26,7 @@ export const AdminPanel: React.FC = () => {
     username: '',
     password: '',
     role: UserRole.MEMBER,
+    designation: '',
     projectAccess: {} as Record<string, ProjectAccessLevel>
   });
 
@@ -56,6 +57,7 @@ export const AdminPanel: React.FC = () => {
       username: '',
       password: '',
       role: UserRole.MEMBER,
+      designation: '',
       projectAccess: projects.reduce((acc, p) => ({ ...acc, [p.id]: 'read' }), {})
     });
     setUserModalTab('account');
@@ -74,6 +76,7 @@ export const AdminPanel: React.FC = () => {
       username: user.username,
       password: user.password,
       role: user.role,
+      designation: user.designation || '',
       projectAccess: access
     });
     setUserModalTab('account');
@@ -91,6 +94,7 @@ export const AdminPanel: React.FC = () => {
         username: userFormData.username,
         password: userFormData.password,
         role: userFormData.role,
+        designation: userFormData.designation,
         projectAccess: userFormData.projectAccess
       });
     } else {
@@ -100,6 +104,7 @@ export const AdminPanel: React.FC = () => {
         username: userFormData.username,
         password: userFormData.password,
         role: userFormData.role,
+        designation: userFormData.designation,
         avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${userFormData.username}`,
         projectAccess: userFormData.projectAccess,
         isOnline: false
@@ -238,6 +243,7 @@ export const AdminPanel: React.FC = () => {
                           {user.role === UserRole.ADMIN ? <Shield size={10} className="mr-1" /> : <UserIcon size={10} className="mr-1" />}
                           {user.role}
                         </span>
+                        {user.designation && <div className="text-xs text-slate-500 mt-1">{user.designation}</div>}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-1">
@@ -430,6 +436,18 @@ export const AdminPanel: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Designation Field */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Designation</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all bg-slate-50 focus:bg-white"
+                    value={userFormData.designation}
+                    onChange={e => setUserFormData({ ...userFormData, designation: e.target.value })}
+                    placeholder="Software Engineer, Product Manager, etc."
+                  />
                 </div>
 
                 {/* Password Field */}

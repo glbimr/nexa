@@ -38,6 +38,7 @@ export interface User {
   password: string;
   role: UserRole;
   avatar: string;
+  designation?: string;
   isOnline?: boolean;
   projectAccess: Record<string, ProjectAccessLevel>;
   dashboardConfig?: DashboardWidget[];
