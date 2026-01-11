@@ -1826,6 +1826,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Auto-hangup incoming call after 10 seconds if not answered
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (incomingCall) {
+      timeoutId = setTimeout(() => {
+        console.log("Auto-rejecting call due to 10s timeout");
+        rejectIncomingCall();
+      }, 10000);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [incomingCall]); // Dependency ensures timer resets if call state changes
+
+
   const endCall = () => {
     if (activeCallData && currentUser) {
       activeCallData.participantIds.forEach(pid => { sendSignal('HANGUP', pid, {}); });
