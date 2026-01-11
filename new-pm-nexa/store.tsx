@@ -507,7 +507,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const notifSubscription = currentUser ? supabase.channel('notif-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${currentUser.id}` }, payload => {
-        if (payload.eventType === 'INSERT') setNotifications(prev => [mapNotificationFromDB(payload.new), ...prev]);
+        if (payload.eventType === 'INSERT') {
+          setNotifications(prev => [mapNotificationFromDB(payload.new), ...prev]);
+
+          // Play Notification Sound
+          try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866.wav'); // "Happy Pop" - distinct from message tone
+            audio.volume = 0.5;
+            audio.play().catch(e => console.error("Notification sound blocked", e));
+          } catch (e) {
+            console.error("Notification audio error", e);
+          }
+        }
         if (payload.eventType === 'UPDATE') setNotifications(prev => prev.map(n => n.id === payload.new.id ? mapNotificationFromDB(payload.new) : n));
       })
       .subscribe() : null;
