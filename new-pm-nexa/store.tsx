@@ -275,7 +275,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const mapUserFromDB = (u: any): User => ({
     ...u,
     isOnline: u.is_online,
-    lastSeen: u.last_seen,
     projectAccess: u.project_access,
     dashboardConfig: u.dashboard_config
   });

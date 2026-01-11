@@ -461,25 +461,6 @@ export const Communication: React.FC = () => {
     )
     .sort((a, b) => getLastMsgTimestamp(b.id, true) - getLastMsgTimestamp(a.id, true));
 
-  const formatLastSeen = (lastSeen?: number | string) => {
-    if (!lastSeen) return 'Offline';
-    const date = new Date(lastSeen);
-    const timestamp = date.getTime();
-    if (isNaN(timestamp)) return 'Offline';
-
-    const now = Date.now();
-    const diff = Math.max(0, now - timestamp);
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (minutes < 1) return 'Last seen just now';
-    if (minutes < 60) return `Last seen ${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-    if (hours < 24) return `Last seen ${hours} hour${hours !== 1 ? 's' : ''} ago`;
-    if (days === 1) return 'Last seen yesterday';
-    return `Last seen ${days} day${days !== 1 ? 's' : ''} ago`;
-  };
-
   // --- Call Interface Component ---
   const CallInterface = () => {
     const mainStageRef = useRef<HTMLDivElement>(null);
@@ -1192,9 +1173,9 @@ export const Communication: React.FC = () => {
                     {isGroup(selectedChat) && <Users size={12} className="ml-1.5 opacity-40 group-hover/headername:opacity-100 transition-opacity" />}
                   </h3>
                   {isUser(selectedChat) ? (
-                    <div className={`flex items-center text-xs ${selectedChat.isOnline ? 'text-green-500' : 'text-slate-500'}`}>
+                    <div className="flex items-center text-xs text-green-500">
                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedChat.isOnline ? 'bg-green-500' : 'bg-slate-400'}`}></span>
-                      {selectedChat.isOnline ? 'Online' : formatLastSeen(selectedChat.lastSeen)}
+                      {selectedChat.isOnline ? 'Online' : 'Offline'}
                     </div>
                   ) : (
                     <div className="text-xs text-slate-500">
