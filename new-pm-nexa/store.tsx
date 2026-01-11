@@ -1743,7 +1743,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. Host tells ALL existing participants to connect to New User
     activeCallData.participantIds.forEach(existingPid => {
       if (existingPid !== recipientId) { // Should always be true as we push after
-        sendSignal('ADD_TO_CALL', existingPid, { targetId: recipientId });
+        // Tell existing peers to connect to the new guy.
+        // The existing peer MUST Initiate the connection to the new guy (Standard Mesh Pattern: Old connects to New)
+        // OR New connects to Old?
+        // Usually, the "Inviter" (Host) tells existing peers "Hey, dial this new guy".
+        sendSignal('ADD_TO_CALL', existingPid, { targetId: recipientId, shouldInitiate: true });
       }
     });
 
