@@ -443,11 +443,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // Check if we are currently looking at this chat
               const isFocused = selectedChatIdRef.current === messageChatId;
 
+              // DEBUG LOGS
+              console.log('🔔 Sound Logic Debug:', {
+                myId: currentUser.id,
+                senderId: mapped.senderId,
+                chatIdForMsg: messageChatId,
+                focusedChatId: selectedChatIdRef.current,
+                isFocused,
+                willPlay: !isFocused
+              });
+
               if (!isFocused) {
                 // Play Sound
-                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354.wav'); // "Pop" sound
-                audio.volume = 0.5;
-                audio.play().catch(e => console.error("Msg sound blocked", e));
+                try {
+                  const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869.wav'); // "Notification" - clear beep
+                  audio.volume = 0.6;
+                  const playPromise = audio.play();
+                  if (playPromise !== undefined) {
+                    playPromise.catch((e) => {
+                      console.error("Audio play failed:", e);
+                    });
+                  }
+                } catch (e) {
+                  console.error("Audio construction failed:", e);
+                }
               }
             }
           }
