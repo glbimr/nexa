@@ -1878,8 +1878,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRecipientBusy(null);
   };
 
-  const rejectIncomingCall = () => {
+  const rejectIncomingCall = async (isMissed: boolean = false) => {
     if (incomingCall && currentUser) {
+      if (isMissed) {
+        const caller = users.find(u => u.id === incomingCall.callerId);
+        const callerName = caller ? caller.name : 'Unknown';
+
+        // Notification
+        await supabase.from('notifications').insert({
+          id: 'n-' + Date.now() + Math.random(),
+          recipient_id: currentUser.id,
+          sender_id: incomingCall.callerId,
+          type: NotificationType.MISSED_CALL,
+          title: 'Missed Call',
+          message: `You missed a call from ${callerName}`,
+          timestamp: Date.now(),
+          read: false,
+          link_to: incomingCall.callerId
+        });
+
+        // Chat Message
+        await supabase.from('messages').insert({
+          id: 'm-' + Date.now() + Math.random(),
+          sender_id: incomingCall.callerId,
+          recipient_id: currentUser.id,
+          text: 'Missed Call',
+          timestamp: Date.now(),
+          type: 'missed_call',
+          attachments: []
+        });
+      }
       // 1. Hangup on the primary caller
       sendSignal('HANGUP', incomingCall.callerId, {});
 
@@ -1899,7 +1927,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (incomingCall) {
       timeoutId = setTimeout(() => {
         console.log("Auto-rejecting call due to 10s timeout");
-        rejectIncomingCall();
+        rejectIncomingCall(true);
       }, 10000);
     }
     return () => clearTimeout(timeoutId);
