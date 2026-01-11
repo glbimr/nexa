@@ -551,15 +551,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     signalingChannelRef.current = channel;
 
     const updatePresence = async () => {
-      if (document.visibilityState === 'visible' && currentUserRef.current) {
-        await channel.track({
-          user_id: currentUserRef.current.id,
-          name: currentUserRef.current.name,
-          online_at: new Date().toISOString(),
-        });
-      } else {
-        // Untrack or update metadata if hidden (user's choice: we'll untrack to be strict about "Active Now")
-        await channel.untrack();
+      if (currentUserRef.current) {
+        // Track presence immediately.
+        // We removed the visibility check to ensure the Green Dot stays ON even if the user minimizes the browser or switches tabs.
+        // Supabase Realtime will automatically handle "untracking" when the socket disconnects (e.g. closing the tab).
+        try {
+          await channel.track({
+            user_id: currentUserRef.current.id,
+            name: currentUserRef.current.name,
+            online_at: new Date().toISOString(),
+          });
+        } catch (e) { console.error('Presence track error', e); }
       }
     };
 
