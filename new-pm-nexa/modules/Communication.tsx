@@ -1173,7 +1173,7 @@ export const Communication: React.FC = () => {
                     {isGroup(selectedChat) && <Users size={12} className="ml-1.5 opacity-40 group-hover/headername:opacity-100 transition-opacity" />}
                   </h3>
                   {isUser(selectedChat) ? (
-                    <div className="flex items-center text-xs text-green-500">
+                    <div className={`flex items-center text-xs ${selectedChat.isOnline ? 'text-green-500' : 'text-slate-400'}`}>
                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedChat.isOnline ? 'bg-green-500' : 'bg-slate-400'}`}></span>
                       {selectedChat.isOnline ? 'Online' : 'Offline'}
                     </div>
