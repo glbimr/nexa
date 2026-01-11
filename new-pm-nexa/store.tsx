@@ -1999,7 +1999,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           video: {
             // @ts-ignore
             cursor: 'always',
-            // Increase constraints for 4K Screen Sharing
+            // High Quality Screen Sharing (Allow up to 4K, but don't force it if system struggles)
             width: { ideal: 3840, max: 3840 },
             height: { ideal: 2160, max: 2160 },
             frameRate: { ideal: 30, max: 60 }
@@ -2050,16 +2050,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await sender.replaceTrack(screenTrack);
 
-              // High Quality 4K Settings: 10 Mbps
+              // Optimized 4K Settings: 6 Mbps (Balanced Performance/Quality)
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
 
-              params.encodings[0].maxBitrate = 10000000;
+              params.encodings[0].maxBitrate = 6000000; // 6 Mbps is sufficient for sharp screen share without choking
 
-              // 'maintain-resolution' ensures that even if bandwidth drops, the text remains sharp (FPS will drop instead)
-              // This is critical for 4K.
+              // 'balanced' allows framerate/resolution trade-offs to prevent "Slowness" or Stuttering
               // @ts-ignore
-              params.degradationPreference = 'maintain-resolution';
+              params.degradationPreference = 'balanced';
 
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
@@ -2074,9 +2073,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // Apply quality settings immediately for new tracks too
               const params = sender.getParameters();
               if (!params.encodings) params.encodings = [{}];
-              params.encodings[0].maxBitrate = 10000000;
+              params.encodings[0].maxBitrate = 6000000;
               // @ts-ignore
-              params.degradationPreference = 'maintain-resolution';
+              params.degradationPreference = 'balanced';
               params.encodings[0].networkPriority = 'high';
               await sender.setParameters(params);
 
