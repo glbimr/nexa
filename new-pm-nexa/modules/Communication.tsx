@@ -958,9 +958,8 @@ export const Communication: React.FC = () => {
           </div>
         </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {/* Team Chat Option */}
+        {/* Fixed Team Chat Option */}
+        <div className="p-2 border-b border-slate-100 shrink-0 bg-white z-10">
           <button
             onClick={() => handleChatSelect(null)}
             className={`w-full flex items-center p-3 rounded-lg transition-colors ${selectedChat === null ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-white hover:shadow-sm text-slate-700'
@@ -977,6 +976,10 @@ export const Communication: React.FC = () => {
               <div className="text-xs opacity-70 truncate">General channel</div>
             </div>
           </button>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
 
           {/* Groups Section */}
           {filteredGroups.length > 0 && (

@@ -736,16 +736,6 @@ const MainLayout: React.FC = () => {
                 <Lock size={12} />
                 <span>Change Password</span>
               </button>
-              <button
-                onClick={() => {
-                  setIsAvatarModalOpen(false);
-                  logout();
-                }}
-                className="w-full py-2 bg-rose-50 text-rose-600 border border-rose-100 font-bold rounded-lg hover:bg-rose-100 transition-all text-[11px] flex items-center justify-center space-x-2"
-              >
-                <LogOut size={12} />
-                <span>Sign Out</span>
-              </button>
             </div>
           </div>
 
@@ -783,20 +773,33 @@ const MainLayout: React.FC = () => {
         </div>
 
         {/* Fixed Modal Footer */}
-        <div className="shrink-0 p-4 px-6 border-t border-slate-100 bg-slate-50/30 flex justify-end space-x-3">
+        <div className="shrink-0 p-4 px-6 border-t border-slate-100 bg-slate-50/30 flex justify-between items-center">
           <button
-            onClick={() => setIsAvatarModalOpen(false)}
-            className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors text-xs font-bold"
+            onClick={() => {
+              setIsAvatarModalOpen(false);
+              logout();
+            }}
+            className="flex items-center space-x-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2 rounded-lg transition-colors text-xs font-bold"
           >
-            Cancel
+            <LogOut size={14} />
+            <span>Sign Out</span>
           </button>
-          <button
-            onClick={handleSaveAvatar}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg shadow-indigo-100 text-xs flex items-center"
-          >
-            <Check size={14} className="mr-2" />
-            Save Changes
-          </button>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setIsAvatarModalOpen(false)}
+              className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors text-xs font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveAvatar}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg shadow-indigo-100 text-xs flex items-center"
+            >
+              <Check size={14} className="mr-2" />
+              Save Changes
+            </button>
+          </div>
         </div>
       </Modal>
 
