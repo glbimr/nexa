@@ -436,7 +436,33 @@ export const Communication: React.FC = () => {
     const mainStageRef = useRef<HTMLDivElement>(null);
     const [pipPos, setPipPos] = useState({ x: window.innerWidth - 336, y: window.innerHeight - 206 }); // Initial Bottom-Right
     const [isDragging, setIsDragging] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const dragOffset = useRef({ x: 0, y: 0 });
+
+    // Handle Global Drag Events
+    useEffect(() => {
+      const handleGlobalMove = (e: MouseEvent) => {
+        if (!isDragging) return;
+        setPipPos({
+          x: e.clientX - dragOffset.current.x,
+          y: e.clientY - dragOffset.current.y
+        });
+      };
+
+      const handleGlobalUp = () => {
+        setIsDragging(false);
+      };
+
+      if (isDragging) {
+        document.addEventListener('mousemove', handleGlobalMove);
+        document.addEventListener('mouseup', handleGlobalUp);
+      }
+
+      return () => {
+        document.removeEventListener('mousemove', handleGlobalMove);
+        document.removeEventListener('mouseup', handleGlobalUp);
+      };
+    }, [isDragging]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
       if (viewMode !== 'pip') return;
@@ -447,17 +473,9 @@ export const Communication: React.FC = () => {
       };
     };
 
-    const handleMouseMove = (e: React.MouseEvent) => {
-      if (!isDragging) return;
-      setPipPos({
-        x: e.clientX - dragOffset.current.x,
-        y: e.clientY - dragOffset.current.y
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
+    // Removed old local handlers as we use global now
+    // const handleMouseMove ... 
+    // const handleMouseUp ...
 
     // Determine the main "Spotlight" user
     // Priority: Pinned User > Someone with Video (Screen Sharing or Camera) > First Remote
@@ -498,9 +516,6 @@ export const Communication: React.FC = () => {
 
     return (
       <div
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         style={viewMode === 'pip' ? {
           position: 'fixed',
           left: `${pipPos.x}px`,
@@ -533,6 +548,16 @@ export const Communication: React.FC = () => {
           </div>
 
           <div className="flex space-x-2 pointer-events-auto">
+            {viewMode !== 'pip' && (
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`p-2 rounded-lg transition-colors backdrop-blur-sm ${!isSidebarOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-black/20 hover:bg-black/40 text-white'}`}
+                title={isSidebarOpen ? "Hide Members" : "Show Members"}
+              >
+                <Layout size={20} />
+              </button>
+            )}
+
             {viewMode !== 'pip' && (
               <button
                 onClick={() => setViewMode('pip')}
@@ -568,7 +593,7 @@ export const Communication: React.FC = () => {
               {/* Drag Handle */}
               <button
                 onMouseDown={handleMouseDown}
-                className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded cursor-move hover:bg-indigo-600 transition-colors z-30 opacity-0 group-hover:opacity-100"
+                className="absolute top-2 left-2 p-1.5 bg-black/60 text-white rounded cursor-move hover:bg-indigo-600 transition-colors z-30 opacity-0 group-hover:opacity-100"
                 title="Drag to Move"
               >
                 <Move size={14} />
@@ -654,84 +679,86 @@ export const Communication: React.FC = () => {
               </div>
 
               {/* 2. Sidebar (Sideways Column) */}
-              <div className="w-full md:w-64 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex flex-row md:flex-col p-3 mb-28 md:mb-0 space-x-3 md:space-x-0 md:space-y-3 overflow-x-auto md:overflow-y-auto shrink-0 z-10 no-scrollbar">
+              {isSidebarOpen && (
+                <div className="w-full md:w-64 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex flex-row md:flex-col p-3 mb-28 md:mb-0 space-x-3 md:space-x-0 md:space-y-3 overflow-x-auto md:overflow-y-auto shrink-0 z-10 no-scrollbar">
 
-                {/* Local User Card (Only if not pinned) */}
-                {showLocalInSidebar && (
-                  <div className="relative shrink-0 w-40 md:w-full aspect-video bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-md group">
-                    {/* Show local video only if screen sharing or camera is on */}
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className={`w-full h-full object-cover transform ${!isScreenSharing ? 'scale-x-[-1]' : ''} ${(!isScreenSharing && !isCameraOn) ? 'hidden' : ''}`}
-                    />
-                    {!isScreenSharing && !isCameraOn && (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800">
-                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center mb-1">
-                          <span className="text-white text-xs font-bold">YOU</span>
-                        </div>
-                      </div>
-                    )}
-                    <div className="absolute bottom-2 left-2 text-white text-xs font-medium bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
-                      You {!isMicOn && <MicOff size={10} className="inline ml-1 text-red-400" />}
-                    </div>
-                    <button
-                      onClick={() => setPinnedUserId(currentUser!.id)}
-                      className="absolute top-2 right-2 p-1.5 bg-black/40 hover:bg-indigo-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all z-20"
-                      title="Pin Yourself"
-                    >
-                      <Pin size={14} />
-                    </button>
-                  </div>
-                )}
-
-                {/* Remote Users in Sidebar */}
-                {sidebarRemoteIds.map(userId => {
-                  const user = users.find(u => u.id === userId);
-                  const stream = remoteStreams.get(userId);
-                  const hasVideo = hasVideoTrack(stream);
-
-                  return (
-                    <div key={userId} className="relative shrink-0 w-40 md:w-full aspect-video bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-md group">
-                      {/* Always render player for Audio */}
-                      {stream && <RemoteVideoPlayer stream={stream} />}
-
-                      {/* Overlay if no video */}
-                      {!hasVideo && (
-                        <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-800 z-10">
-                          <img src={user?.avatar} className="w-8 h-8 rounded-full opacity-50 mb-1" />
-                          <span className="text-[10px] text-slate-400">{stream ? 'Connected' : 'Calling...'}</span>
+                  {/* Local User Card (Only if not pinned) */}
+                  {showLocalInSidebar && (
+                    <div className="relative shrink-0 w-40 md:w-full aspect-video bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-md group">
+                      {/* Show local video only if screen sharing or camera is on */}
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className={`w-full h-full object-cover transform ${!isScreenSharing ? 'scale-x-[-1]' : ''} ${(!isScreenSharing && !isCameraOn) ? 'hidden' : ''}`}
+                      />
+                      {!isScreenSharing && !isCameraOn && (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800">
+                          <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center mb-1">
+                            <span className="text-white text-xs font-bold">YOU</span>
+                          </div>
                         </div>
                       )}
-
-                      <div className="absolute bottom-2 left-2 text-white text-xs font-medium bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm truncate max-w-[90%] z-20">
-                        {user?.name}
+                      <div className="absolute bottom-2 left-2 text-white text-xs font-medium bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
+                        You {!isMicOn && <MicOff size={10} className="inline ml-1 text-red-400" />}
                       </div>
                       <button
-                        onClick={() => setPinnedUserId(userId)}
+                        onClick={() => setPinnedUserId(currentUser!.id)}
                         className="absolute top-2 right-2 p-1.5 bg-black/40 hover:bg-indigo-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all z-20"
-                        title="Pin User"
+                        title="Pin Yourself"
                       >
                         <Pin size={14} />
                       </button>
                     </div>
-                  );
-                })}
+                  )}
 
-                {/* Invite Placeholder if few people */}
-                {activeCallData && activeCallData.participantIds.length < 3 && (
-                  <button
-                    onClick={() => setIsInviteModalOpen(true)}
-                    className="shrink-0 w-40 md:w-full aspect-video bg-slate-800/50 rounded-xl border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-slate-800 transition-all"
-                  >
-                    <UserPlus size={20} className="mb-2" />
-                    <span className="text-xs font-medium">Add Member</span>
-                  </button>
-                )}
+                  {/* Remote Users in Sidebar */}
+                  {sidebarRemoteIds.map(userId => {
+                    const user = users.find(u => u.id === userId);
+                    const stream = remoteStreams.get(userId);
+                    const hasVideo = hasVideoTrack(stream);
 
-              </div>
+                    return (
+                      <div key={userId} className="relative shrink-0 w-40 md:w-full aspect-video bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-md group">
+                        {/* Always render player for Audio */}
+                        {stream && <RemoteVideoPlayer stream={stream} />}
+
+                        {/* Overlay if no video */}
+                        {!hasVideo && (
+                          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-800 z-10">
+                            <img src={user?.avatar} className="w-8 h-8 rounded-full opacity-50 mb-1" />
+                            <span className="text-[10px] text-slate-400">{stream ? 'Connected' : 'Calling...'}</span>
+                          </div>
+                        )}
+
+                        <div className="absolute bottom-2 left-2 text-white text-xs font-medium bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm truncate max-w-[90%] z-20">
+                          {user?.name}
+                        </div>
+                        <button
+                          onClick={() => setPinnedUserId(userId)}
+                          className="absolute top-2 right-2 p-1.5 bg-black/40 hover:bg-indigo-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all z-20"
+                          title="Pin User"
+                        >
+                          <Pin size={14} />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {/* Invite Placeholder if few people */}
+                  {activeCallData && activeCallData.participantIds.length < 3 && (
+                    <button
+                      onClick={() => setIsInviteModalOpen(true)}
+                      className="shrink-0 w-40 md:w-full aspect-video bg-slate-800/50 rounded-xl border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-slate-800 transition-all"
+                    >
+                      <UserPlus size={20} className="mb-2" />
+                      <span className="text-xs font-medium">Add Member</span>
+                    </button>
+                  )}
+
+                </div>
+              )}
             </>
           )}
         </div>
