@@ -5,7 +5,7 @@ import { Task, TaskStatus, SubTask, Attachment, Comment, User, UserRole, Notific
 import {
   Pencil, Plus, CheckSquare, Square, LockKeyhole,
   X, Calendar, Clock, Paperclip, Trash2, Send,
-  Minus, FileText, Download, Share2, ChevronDown, ChevronUp, Eye,
+  Minus, FileText, Download, Share2, ChevronDown, ChevronUp, ChevronRight, Eye,
   Bookmark, AlertTriangle, Bug, BookOpen, CheckCircle2, Check, User as UserIcon,
   LayoutGrid, List, Search, SlidersHorizontal, ArrowUpDown, MoreVertical, Settings,
   Link as LinkIcon, Circle
@@ -450,6 +450,18 @@ interface ListViewProps {
 }
 
 const ListView: React.FC<ListViewProps> = ({ tasks, users, onEditTask, visibleColumns }) => {
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedTaskIds);
+    if (newExpanded.has(taskId)) {
+      newExpanded.delete(taskId);
+    } else {
+      newExpanded.add(taskId);
+    }
+    setExpandedTaskIds(newExpanded);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-0">
@@ -470,86 +482,153 @@ const ListView: React.FC<ListViewProps> = ({ tasks, users, onEditTask, visibleCo
             {tasks.map(task => {
               const assignee = users.find(u => u.id === task.assigneeId);
               const categoryConfig = CATEGORY_STYLES[task.category] || CATEGORY_STYLES[TaskCategory.TASK];
+              const isExpanded = expandedTaskIds.has(task.id);
+              const hasSubtasks = task.subtasks.length > 0;
 
               return (
-                <tr
-                  key={task.id}
-                  onClick={() => onEditTask(task)}
-                  className="hover:bg-slate-50 transition-colors cursor-pointer group"
-                >
-                  <td className="px-6 py-3">
-                    <div className="flex items-center">
-                      <div className="font-medium text-slate-800">{task.title}</div>
-                    </div>
-                    {task.subtasks.length > 0 && (
-                      <div className="text-xs text-slate-400 mt-1 flex items-center">
-                        <CheckSquare size={10} className="mr-1" />
-                        {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks
-                      </div>
-                    )}
-                  </td>
-                  {visibleColumns.includes('status') && (
-                    <td className="px-6 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${task.status === TaskStatus.TODO ? 'bg-slate-100 text-slate-600 border-slate-200' :
-                        task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                          'bg-green-50 text-green-700 border-green-100'
-                        }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${task.status === TaskStatus.TODO ? 'bg-slate-400' :
-                          task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-500' :
-                            'bg-green-500'
-                          }`}></span>
-                        {task.status === TaskStatus.TODO ? 'To Do' : task.status === TaskStatus.IN_PROGRESS ? 'In Progress' : 'Done'}
-                      </span>
-                    </td>
-                  )}
-                  {visibleColumns.includes('priority') && (
-                    <td className="px-6 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs capitalize ${task.priority === 'high' ? 'text-red-700 bg-red-50' :
-                        task.priority === 'medium' ? 'text-orange-700 bg-orange-50' :
-                          'text-slate-600 bg-slate-100'
-                        }`}>
-                        {task.priority}
-                      </span>
-                    </td>
-                  )}
-                  {visibleColumns.includes('category') && (
+                <React.Fragment key={task.id}>
+                  {/* Parent Task Row */}
+                  <tr
+                    onClick={() => onEditTask(task)}
+                    className={`hover:bg-slate-50 transition-colors cursor-pointer group ${isExpanded ? 'bg-slate-50/50' : ''}`}
+                  >
                     <td className="px-6 py-3">
                       <div className="flex items-center">
-                        <span className={`w-6 h-6 rounded flex items-center justify-center mr-2 ${categoryConfig.color.split(' ')[0]} ${categoryConfig.color.split(' ')[1]}`}>
-                          <categoryConfig.icon size={14} />
-                        </span>
-                        <span className="text-slate-600 text-sm">{categoryConfig.label}</span>
+                        {/* Expand Button */}
+                        <button
+                          onClick={(e) => toggleExpand(e, task.id)}
+                          className={`mr-3 p-1 rounded hover:bg-slate-200 text-slate-400 transition-colors ${hasSubtasks ? 'opacity-100' : 'opacity-0 cursor-default'}`}
+                          disabled={!hasSubtasks}
+                        >
+                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+
+                        <div className="font-bold text-slate-800">{task.title}</div>
                       </div>
-                    </td>
-                  )}
-                  {visibleColumns.includes('assignee') && (
-                    <td className="px-6 py-3">
-                      {assignee ? (
-                        <div className="flex items-center">
-                          <img src={assignee.avatar} className="w-6 h-6 rounded-full mr-2 border border-slate-200" />
-                          <span className="text-sm text-slate-700">{assignee.name}</span>
+                      {hasSubtasks && !isExpanded && (
+                        <div className="text-[10px] text-slate-400 mt-1 flex items-center ml-9">
+                          <CheckSquare size={10} className="mr-1.5" />
+                          {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks
                         </div>
-                      ) : (
-                        <span className="text-sm text-slate-400 italic">Unassigned</span>
                       )}
                     </td>
-                  )}
-                  {visibleColumns.includes('dueDate') && (
-                    <td className="px-6 py-3">
-                      {task.dueDate ? (
-                        <div className="flex items-center text-slate-600">
-                          <Calendar size={14} className="mr-1.5 text-slate-400" />
-                          {new Date(task.dueDate).toLocaleDateString()}
+                    {visibleColumns.includes('status') && (
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${task.status === TaskStatus.TODO ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                          task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                            'bg-green-50 text-green-700 border-green-100'
+                          }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${task.status === TaskStatus.TODO ? 'bg-slate-400' :
+                            task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-500' :
+                              'bg-green-500'
+                            }`}></span>
+                          {task.status === TaskStatus.TODO ? 'To Do' : task.status === TaskStatus.IN_PROGRESS ? 'In Progress' : 'Done'}
+                        </span>
+                      </td>
+                    )}
+                    {visibleColumns.includes('priority') && (
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs capitalize ${task.priority === 'high' ? 'text-red-700 bg-red-50' :
+                          task.priority === 'medium' ? 'text-orange-700 bg-orange-50' :
+                            'text-slate-600 bg-slate-100'
+                          }`}>
+                          {task.priority}
+                        </span>
+                      </td>
+                    )}
+                    {visibleColumns.includes('category') && (
+                      <td className="px-6 py-3">
+                        <div className="flex items-center">
+                          <span className={`w-6 h-6 rounded flex items-center justify-center mr-2 ${categoryConfig.color.split(' ')[0]} ${categoryConfig.color.split(' ')[1]}`}>
+                            <categoryConfig.icon size={14} />
+                          </span>
+                          <span className="text-slate-600 text-sm hidden xl:inline">{categoryConfig.label}</span>
                         </div>
-                      ) : <span className="text-slate-300">-</span>}
-                    </td>
-                  )}
-                  {visibleColumns.includes('created') && (
-                    <td className="px-6 py-3 text-right text-slate-500 text-xs font-mono">
-                      {new Date(task.createdAt).toLocaleDateString()}
-                    </td>
-                  )}
-                </tr>
+                      </td>
+                    )}
+                    {visibleColumns.includes('assignee') && (
+                      <td className="px-6 py-3">
+                        {assignee ? (
+                          <div className="flex items-center">
+                            <img src={assignee.avatar} className="w-6 h-6 rounded-full mr-2 border border-slate-200" title={assignee.name} />
+                            <span className="text-sm text-slate-700 truncate max-w-[100px]">{assignee.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-400 italic">Unassigned</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.includes('dueDate') && (
+                      <td className="px-6 py-3">
+                        {task.dueDate ? (
+                          <div className="flex items-center text-slate-600">
+                            <Calendar size={14} className="mr-1.5 text-slate-400" />
+                            {new Date(task.dueDate).toLocaleDateString()}
+                          </div>
+                        ) : <span className="text-slate-300">-</span>}
+                      </td>
+                    )}
+                    {visibleColumns.includes('created') && (
+                      <td className="px-6 py-3 text-right text-slate-500 text-xs font-mono">
+                        {new Date(task.createdAt).toLocaleDateString()}
+                      </td>
+                    )}
+                  </tr>
+
+                  {/* Subtask Rows */}
+                  {isExpanded && task.subtasks.map(sub => {
+                    const subAssignee = users.find(u => u.id === sub.assigneeId);
+                    const subCat = CATEGORY_STYLES[sub.category] || CATEGORY_STYLES[TaskCategory.TASK];
+
+                    return (
+                      <tr key={sub.id} className="bg-slate-50/30 hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-2 pl-16 relative">
+                          {/* Tree connector line */}
+                          <div className="absolute left-9 top-0 bottom-0 w-px bg-slate-200 group-last:bottom-1/2"></div>
+                          <div className="absolute left-9 top-1/2 w-4 h-px bg-slate-200"></div>
+
+                          <div className="flex items-center">
+                            {sub.completed ? <CheckSquare size={14} className="text-green-500 mr-2" /> : <Square size={14} className="text-slate-300 mr-2" />}
+                            <span className={`text-sm ${sub.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{sub.title}</span>
+                          </div>
+                        </td>
+                        {visibleColumns.includes('status') && (
+                          <td className="px-6 py-2">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${sub.completed ? 'text-green-600' : 'text-slate-400'}`}>
+                              {sub.completed ? 'Done' : 'To Do'}
+                            </span>
+                          </td>
+                        )}
+                        {visibleColumns.includes('priority') && (
+                          <td className="px-6 py-2">
+                            <span className="text-xs text-slate-500 capitalize px-2 py-0.5 border border-slate-100 rounded bg-white">{sub.priority}</span>
+                          </td>
+                        )}
+                        {visibleColumns.includes('category') && (
+                          <td className="px-6 py-2">
+                            <div className="flex items-center opacity-70">
+                              <subCat.icon size={12} className="mr-2 text-slate-400" />
+                              <span className="text-xs text-slate-500">{subCat.label}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.includes('assignee') && (
+                          <td className="px-6 py-2">
+                            {subAssignee ? (
+                              <div className="flex items-center opacity-80">
+                                <img src={subAssignee.avatar} className="w-5 h-5 rounded-full mr-2 grayscale-[0.3]" />
+                                <span className="text-xs text-slate-600">{subAssignee.name}</span>
+                              </div>
+                            ) : <span className="text-xs text-slate-300">-</span>}
+                          </td>
+                        )}
+                        {/* Empty columns for dates if not available on subtask, or render specific subtask dates if added */}
+                        {visibleColumns.includes('dueDate') && <td className="px-6 py-2"></td>}
+                        {visibleColumns.includes('created') && <td className="px-6 py-2"></td>}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
               );
             })}
             {tasks.length === 0 && (
@@ -1844,7 +1923,7 @@ const SubtaskEditor: React.FC<{
 
 export const KanbanBoard: React.FC = () => {
   const { tasks, users, updateTask, moveTask, currentUser, projects, selectedTaskId, setSelectedTaskId } = useApp();
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('list');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filters
