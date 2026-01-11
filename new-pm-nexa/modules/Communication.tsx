@@ -59,6 +59,16 @@ export const Communication: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMapRef = useRef<Map<string, File>>(new Map());
 
+  // Real-time Sync for Selected Chat (User)
+  useEffect(() => {
+    if (selectedChat && isUser(selectedChat)) {
+      const liveUser = users.find(u => u.id === selectedChat.id);
+      if (liveUser && liveUser.isOnline !== selectedChat.isOnline) {
+        setSelectedChat(prev => prev && prev.id === liveUser.id ? liveUser : prev);
+      }
+    }
+  }, [users, selectedChat]);
+
   const isGroup = (chat: any): chat is Group => {
     return chat && 'memberIds' in chat;
   };
