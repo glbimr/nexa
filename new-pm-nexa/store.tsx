@@ -1562,9 +1562,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
         setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-        // Start MUTED by default
-        stream.getAudioTracks().forEach(t => t.enabled = false);
-        setIsMicOn(false);
+        // Start with Audio ON (Performance enhancement for real-time connection)
+        stream.getAudioTracks().forEach(t => t.enabled = true);
+        setIsMicOn(true);
         setIsCameraOn(false);
       } catch (e) {
         console.error("Error getting user media", e);
@@ -1649,13 +1649,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
           setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-          // Start Muted
-          stream.getAudioTracks().forEach(t => t.enabled = false);
+          // Start with Audio ON (Performance enhancement for real-time connection)
+          stream.getAudioTracks().forEach(t => t.enabled = true);
           setLocalStream(stream);
           // Update refs
           localStreamRef.current = stream;
           if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
-          setIsMicOn(false);
+          setIsMicOn(true);
         }
         catch (e) {
           console.error("No audio device found", e);
@@ -1694,9 +1694,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
           setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
 
-          // Start Muted by default
-          stream.getAudioTracks().forEach(t => t.enabled = false);
-          setIsMicOn(false);
+          // Start with Audio ON (Performance enhancement for real-time connection)
+          stream.getAudioTracks().forEach(t => t.enabled = true);
+          setIsMicOn(true);
           setIsCameraOn(false);
           setIsCameraOn(false);
         }
