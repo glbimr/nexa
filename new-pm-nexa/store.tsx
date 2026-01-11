@@ -93,12 +93,19 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Configuration for WebRTC (using public STUN servers)
 const RTC_CONFIG: RTCConfiguration = {
+  iceTransportPolicy: 'all',
+  iceCandidatePoolSize: 10,
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' }
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:stun.ekiga.net' },
+    { urls: 'stun:stun.fwdnet.net' },
+    { urls: 'stun:stun.ideasip.com' },
+    { urls: 'stun:stun.iptel.org' }
   ]
 };
 
