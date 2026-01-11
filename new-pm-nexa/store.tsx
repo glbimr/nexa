@@ -65,6 +65,10 @@ interface AppContextType {
   activeTab: 'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin';
   setActiveTab: (tab: 'dashboard' | 'projects' | 'chat' | 'calendar' | 'admin') => void;
 
+  // Chat Focus State
+  selectedChatId: string | null;
+  setSelectedChatId: (id: string | null) => void;
+
   // Call Logic
   startCall: (recipientId: string) => Promise<void>;
   startGroupCall: (recipientIds: string[]) => Promise<void>;
@@ -157,6 +161,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTabState(tab);
   };
 
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+
   // WebRTC Refs - Now using a Map for multiple connections
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const signalingChannelRef = useRef<RealtimeChannel | null>(null);
@@ -166,6 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const incomingCallRef = useRef<IncomingCall | null>(null);
 
   // Refs for State Access in Event Listeners to avoid dependency cycles / re-subscriptions
+  const selectedChatIdRef = useRef<string | null>(null); // Track selected chat globally
   const isInCallRef = useRef(isInCall);
   const activeCallDataRef = useRef(activeCallData);
   const localStreamRef = useRef(localStream);
@@ -306,7 +313,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localAudioStreamRef.current = localAudioStream;
     localVideoStreamRef.current = localVideoStream;
     usersRef.current = users;
-  }, [incomingCall, isInCall, activeCallData, localStream, localAudioStream, localVideoStream, users]);
+    selectedChatIdRef.current = selectedChatId;
+  }, [incomingCall, isInCall, activeCallData, localStream, localAudioStream, localVideoStream, users, selectedChatId]);
 
   // Check available devices
   useEffect(() => {
@@ -407,7 +415,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const { data } = await supabase.from('decrypted_messages').select('*').eq('id', payload.new.id).single();
               if (data) {
                 setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, mapMessageFromDB(data)]);
-                return;
+                // Continue to sound logic...
               }
             } catch (e) {
               // ignore and fallback to payload.new below
@@ -417,6 +425,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const row = payload.new;
             const mapped = mapMessageFromDB(row);
             setMessages(prev => prev.some(m => m.id === mapped.id) ? prev : [...prev, mapped]);
+
+            // --- INCOMING MESSAGE SOUND LOGIC ---
+            // Only play if:
+            // 1. We are NOT the sender
+            // 2. Chat is NOT currently focused (Global Active Tab != 'chat' OR focused ID != sender)
+            if (currentUser && mapped.senderId !== currentUser.id) {
+              const currentTab = window.localStorage.getItem('nexus_pm_active_tab'); // OR use state? State is reliable inside component, but we are in effect. Ref is better?
+              // Actually we have activeTab in state, but need Ref for up-to-date access in closure?
+              // No, we can assume 'chat' tab status if we had a ref. 
+              // BUT strict requirement: "when that particular chatbox is not opened"
+
+              // We have selectedChatIdRef.
+              // We assume 'activeTab' is also available via Ref or just logic. 
+              // Wait, activeTab is state. If effect depends on it, it re-subs. 
+              // Let's add activeTabRef if needed, or just play sound if selectedChatIdRef DOES NOT match.
+
+              const isChatFocused = selectedChatIdRef.current === mapped.senderId || selectedChatIdRef.current === mapped.recipientId; // RecipientId check for groups?
+              // For Groups: recipientId is the Group ID.
+              // For DMs: senderId is the User ID.
+
+              const isGroupMsg = mapped.recipientId && mapped.recipientId.startsWith('g-');
+              const relevantId = isGroupMsg ? mapped.recipientId : mapped.senderId;
+
+              const isFocused = selectedChatIdRef.current === relevantId;
+
+              // Also check if document is visible? WhatsApp plays sound even if visible but different chat.
+              // So: If !isFocused -> Play.
+
+              if (!isFocused) {
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354.wav'); // "Pop" sound
+                audio.volume = 0.5;
+                audio.play().catch(e => console.error("Msg sound blocked", e));
+              }
+            }
           }
 
           // Handle UPDATE (e.g. Reads)
@@ -2258,7 +2300,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteMeeting: async (id: string) => {
         const { error } = await supabase.from('meetings').delete().eq('id', id);
         if (error) console.error("Delete meeting failed:", error);
-      }
+      },
+
+      // Chat Focus
+      selectedChatId,
+      setSelectedChatId
     }}>
       {children}
     </AppContext.Provider>

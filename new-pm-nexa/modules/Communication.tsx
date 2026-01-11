@@ -15,7 +15,8 @@ export const Communication: React.FC = () => {
   const {
     messages, addMessage, currentUser, users, groups, createGroup, markChatRead, getUnreadCount,
     startCall, startGroupCall, addToCall, endCall, isInCall, activeCallData, localStream, remoteStreams, isScreenSharing, toggleScreenShare,
-    isMicOn, isCameraOn, toggleMic, deletedMessageIds, clearChatHistory, hasAudioDevice, updateGroup, deleteGroup
+    isMicOn, isCameraOn, toggleMic, deletedMessageIds, clearChatHistory, hasAudioDevice, updateGroup, deleteGroup,
+    setSelectedChatId
   } = useApp();
 
   // UI State
@@ -65,6 +66,22 @@ export const Communication: React.FC = () => {
   const isUser = (chat: any): chat is User => {
     return chat && 'username' in chat;
   };
+
+  // Sync selected chat with global store on mount/unmount and change
+  useEffect(() => {
+    // If selectedChat is null on mount, it might mean 'general' or nothing.
+    // But we stay in sync.
+    if (selectedChat) {
+      setSelectedChatId(selectedChat.id);
+    } else {
+      setSelectedChatId('general'); // Default to general if null? or null?
+      // In this app, null often means Default Team Chat.
+    }
+
+    return () => {
+      setSelectedChatId(null);
+    };
+  }, [selectedChat, setSelectedChatId]);
 
   // Switch chat view if an active call exists for a specific user and it's 1:1
   useEffect(() => {
@@ -222,11 +239,14 @@ export const Communication: React.FC = () => {
 
   const handleChatSelect = (chat: User | Group | null) => {
     setSelectedChat(chat);
+    if (chat) {
+      setSelectedChatId(chat.id);
+      markChatRead(chat.id);
+    } else {
+      setSelectedChatId('general');
+      markChatRead('general');
+    }
     setShowMobileChat(true);
-
-    // Mark as read
-    const chatId = chat ? chat.id : 'general';
-    markChatRead(chatId);
   };
 
   const handleHideChat = (e: React.MouseEvent, chatId: string) => {
