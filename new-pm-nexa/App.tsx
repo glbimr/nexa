@@ -67,9 +67,32 @@ const PREDEFINED_AVATARS = [
 
 const AVAILABLE_RINGTONES = [
   { name: 'Office Digital', url: 'https://orangefreesounds.com/wp-content/uploads/2023/04/Office-phone-ringing-sound-effect.mp3' },
-  { name: 'Cosmic Flow', url: 'https://www.orangefreesounds.com/wp-content/uploads/2020/02/Cosmic-ringtone.mp3' },
-  { name: 'Piano Melody', url: 'https://www.orangefreesounds.com/wp-content/uploads/2021/01/Piano-ringtone.mp3' },
-  { name: 'Marimba Groove', url: 'https://www.orangefreesounds.com/wp-content/uploads/2019/03/Marimba-tone.mp3' },
+  { name: 'Cosmic Flow', url: 'https://assets.mixkit.co/active_storage/sfx/2042/2042.wav' },
+  { name: 'Zen Garden', url: 'https://assets.mixkit.co/active_storage/sfx/2056/2056.wav' },
+  { name: 'Upbeat Pulse', url: 'https://assets.mixkit.co/active_storage/sfx/2060/2060.wav' },
+  { name: 'Classic Phone', url: 'https://assets.mixkit.co/active_storage/sfx/2063/2063.wav' },
+  { name: 'Soft Ripple', url: 'https://assets.mixkit.co/active_storage/sfx/2007/2007.wav' },
+  { name: 'Energetic', url: 'https://assets.mixkit.co/active_storage/sfx/2059/2059.wav' },
+];
+
+const MESSAGE_TONES = [
+  { name: 'Clear Beep', url: 'https://assets.mixkit.co/active_storage/sfx/2869/2869.wav' },
+  { name: 'Soft Chirp', url: 'https://assets.mixkit.co/active_storage/sfx/2864/2864.wav' },
+  { name: 'Quick Chime', url: 'https://assets.mixkit.co/active_storage/sfx/2867/2867.wav' },
+  { name: 'Subtle Ding', url: 'https://assets.mixkit.co/active_storage/sfx/2870/2870.wav' },
+  { name: 'Glass Tap', url: 'https://assets.mixkit.co/active_storage/sfx/2873/2873.wav' },
+  { name: 'Short Pop', url: 'https://assets.mixkit.co/active_storage/sfx/2861/2861.wav' },
+  { name: 'Bubbles', url: 'https://assets.mixkit.co/active_storage/sfx/2877/2877.wav' },
+];
+
+const NOTIFICATION_TONES = [
+  { name: 'Happy Pop', url: 'https://assets.mixkit.co/active_storage/sfx/2866/2866.wav' },
+  { name: 'Gentle Alert', url: 'https://assets.mixkit.co/active_storage/sfx/2857/2857.wav' },
+  { name: 'Bell Ding', url: 'https://assets.mixkit.co/active_storage/sfx/2859/2859.wav' },
+  { name: 'Air Swoosh', url: 'https://assets.mixkit.co/active_storage/sfx/2862/2862.wav' },
+  { name: 'Click', url: 'https://assets.mixkit.co/active_storage/sfx/2578/2578.wav' },
+  { name: 'Woodblock', url: 'https://assets.mixkit.co/active_storage/sfx/2574/2574.wav' },
+  { name: 'Synth Spark', url: 'https://assets.mixkit.co/active_storage/sfx/2568/2568.wav' },
 ];
 const BusyCallModal: React.FC = () => {
   const { recipientBusy, waitToCall, cancelCallWait, users } = useApp();
@@ -316,8 +339,12 @@ const MainLayout: React.FC = () => {
     setSelectedTaskId,
     totalUnreadChatCount,
     ringtone, setRingtone,
+    messageTone, setMessageTone,
+    notificationTone, setNotificationTone,
     activeTab, setActiveTab
   } = useApp();
+
+  const [activeTuneTab, setActiveTuneTab] = useState<'ringtone' | 'message' | 'notification'>('ringtone');
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -693,7 +720,7 @@ const MainLayout: React.FC = () => {
                 className="w-full py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all text-[11px] shadow-sm flex items-center justify-center space-x-2"
               >
                 <Music size={12} />
-                <span>Change Ringtone</span>
+                <span>Change Tunes</span>
               </button>
               <button
                 onClick={() => {
@@ -891,54 +918,85 @@ const MainLayout: React.FC = () => {
             setPlayingRingtone(null);
           }
         }}
-        title="Call Ringtone"
+        title="Change Tunes"
         maxWidth="max-w-md"
       >
         <div className="p-6 space-y-4">
+          <div className="flex border-b border-slate-100 mb-4 bg-slate-50 p-1 rounded-xl">
+            {['ringtone', 'message', 'notification'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => {
+                  setActiveTuneTab(tab as any);
+                  if (previewAudioRef.current) { previewAudioRef.current.pause(); setPlayingRingtone(null); }
+                }}
+                className={`flex-1 py-2 text-xs font-bold capitalize transition-all rounded-lg
+                  ${activeTuneTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}
+                `}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
           <div className="bg-indigo-50/50 p-4 rounded-2xl flex items-center space-x-4 mb-4">
             <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
               <Music size={24} />
             </div>
             <div>
-              <h4 className="font-bold text-slate-800">Select Ringtone</h4>
-              <p className="text-xs text-slate-500">Choose a melody for incoming calls</p>
+              <h4 className="font-bold text-slate-800">
+                {activeTuneTab === 'ringtone' && 'Select Ringtone'}
+                {activeTuneTab === 'message' && 'Select Message Tone'}
+                {activeTuneTab === 'notification' && 'Select Notification Tone'}
+              </h4>
+              <p className="text-xs text-slate-500">
+                {activeTuneTab === 'ringtone' && 'Choose a melody for incoming calls'}
+                {activeTuneTab === 'message' && 'Choose a sound for new messages'}
+                {activeTuneTab === 'notification' && 'Choose a sound for general alerts'}
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            {AVAILABLE_RINGTONES.map((rt) => (
-              <div
-                key={rt.url}
-                className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 ${ringtone === rt.url ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50'
-                  }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => toggleRingtonePreview(rt.url)}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${playingRingtone === rt.url ? 'bg-indigo-600 text-white scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:text-indigo-600'}`}
-                  >
-                    {playingRingtone === rt.url ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-1" />}
-                  </button>
-                  <div>
-                    <p className={`text-sm font-bold ${ringtone === rt.url ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
-                    {ringtone === rt.url && <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Active</p>}
-                  </div>
-                </div>
+          <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+            {(activeTuneTab === 'ringtone' ? AVAILABLE_RINGTONES : activeTuneTab === 'message' ? MESSAGE_TONES : NOTIFICATION_TONES).map((rt) => {
+              const currentVal = activeTuneTab === 'ringtone' ? ringtone : activeTuneTab === 'message' ? messageTone : notificationTone;
+              const setVal = activeTuneTab === 'ringtone' ? setRingtone : activeTuneTab === 'message' ? setMessageTone : setNotificationTone;
+              const isActive = currentVal === rt.url;
 
-                {ringtone === rt.url ? (
-                  <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                    <Check size={12} strokeWidth={4} />
+              return (
+                <div
+                  key={rt.url}
+                  className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 ${isActive ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50'
+                    }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => toggleRingtonePreview(rt.url)}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${playingRingtone === rt.url ? 'bg-indigo-600 text-white scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:text-indigo-600'}`}
+                    >
+                      {playingRingtone === rt.url ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-1" />}
+                    </button>
+                    <div>
+                      <p className={`text-sm font-bold ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{rt.name}</p>
+                      {isActive && <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Active</p>}
+                    </div>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setRingtone(rt.url)}
-                    className="px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
-                  >
-                    Select
-                  </button>
-                )}
-              </div>
-            ))}
+
+                  {isActive ? (
+                    <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                      <Check size={12} strokeWidth={4} />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setVal(rt.url)}
+                      className="px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
+                    >
+                      Select
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <button

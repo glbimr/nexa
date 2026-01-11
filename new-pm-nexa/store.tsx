@@ -81,6 +81,10 @@ interface AppContextType {
   // Preferences
   ringtone: string;
   setRingtone: (url: string) => void;
+  messageTone: string;
+  setMessageTone: (url: string) => void;
+  notificationTone: string;
+  setNotificationTone: (url: string) => void;
 
   // Meetings
   meetings: Meeting[];
@@ -158,6 +162,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setRingtone = (url: string) => {
     setRingtoneState(url);
     localStorage.setItem('nexus_pm_ringtone', url);
+  };
+
+  const [messageTone, setMessageToneState] = useState<string>(() => {
+    // Default: "Notification" - clear beep
+    return localStorage.getItem('nexus_pm_message_tone') || 'https://assets.mixkit.co/active_storage/sfx/2869/2869.wav';
+  });
+
+  const setMessageTone = (url: string) => {
+    setMessageToneState(url);
+    localStorage.setItem('nexus_pm_message_tone', url);
+  };
+
+  const [notificationTone, setNotificationToneState] = useState<string>(() => {
+    // Default: "Happy Pop"
+    return localStorage.getItem('nexus_pm_notification_tone') || 'https://assets.mixkit.co/active_storage/sfx/2866/2866.wav';
+  });
+
+  const setNotificationTone = (url: string) => {
+    setNotificationToneState(url);
+    localStorage.setItem('nexus_pm_notification_tone', url);
   };
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -463,7 +487,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (!isFocused) {
                 // Play Sound
                 try {
-                  const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869.wav'); // "Notification" - clear beep
+                  const audio = new Audio(messageTone); // "Notification" - clear beep
                   audio.volume = 0.6;
                   const playPromise = audio.play();
                   if (playPromise !== undefined) {
@@ -519,7 +543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           // Play Notification Sound
           try {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866.wav'); // "Happy Pop" - distinct from message tone
+            const audio = new Audio(notificationTone); // "Happy Pop" - distinct from message tone
             audio.volume = 0.5;
             audio.play().catch(e => console.error("Notification sound blocked", e));
           } catch (e) {
@@ -2333,6 +2357,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
       recipientBusy, waitToCall, cancelCallWait,
       ringtone, setRingtone,
+      messageTone, setMessageTone,
+      notificationTone, setNotificationTone,
       meetings,
       addMeeting: async (m: Meeting) => {
         const { error } = await supabase.from('meetings').insert({
