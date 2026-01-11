@@ -1914,6 +1914,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const handleRemoteHangup = (senderId: string) => {
+    // Broadcast drop to others to ensure sync (Mesh Relay)
+    const currentCall = activeCallDataRef.current;
+    if (currentCall && currentCall.participantIds.includes(senderId)) {
+      currentCall.participantIds.forEach(pid => {
+        if (pid !== senderId && pid !== currentUser?.id) {
+          sendSignal('DROP_PARTICIPANT', pid, { targetId: senderId });
+        }
+      });
+    }
+
     const pc = peerConnectionsRef.current.get(senderId);
     if (pc) { pc.close(); peerConnectionsRef.current.delete(senderId); }
     setRemoteStreams(prev => { const newMap = new Map(prev); newMap.delete(senderId); return newMap; });
