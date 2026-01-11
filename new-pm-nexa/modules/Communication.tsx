@@ -6,7 +6,7 @@ import {
   Monitor, PhoneOff, Search, Users, ChevronLeft, ChevronDown, ChevronRight,
   Paperclip, FileText, Image as ImageIcon, X, Plus, Check, BellRing,
   Maximize2, Minimize2, PictureInPicture, UserPlus, Layout, MoreVertical, Trash2,
-  PhoneMissed, Pin, PinOff, Maximize, Smartphone, AlertTriangle, MessageSquare
+  PhoneMissed, Pin, PinOff, Maximize, Smartphone, AlertTriangle, MessageSquare, Move
 } from 'lucide-react';
 import { User, Attachment, Group, NotificationType } from '../types';
 import { Modal } from '../components/Modal';
@@ -434,6 +434,31 @@ export const Communication: React.FC = () => {
   // --- Call Interface Component ---
   const CallInterface = () => {
     const mainStageRef = useRef<HTMLDivElement>(null);
+    const [pipPos, setPipPos] = useState({ x: window.innerWidth - 336, y: window.innerHeight - 206 }); // Initial Bottom-Right
+    const [isDragging, setIsDragging] = useState(false);
+    const dragOffset = useRef({ x: 0, y: 0 });
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (viewMode !== 'pip') return;
+      setIsDragging(true);
+      dragOffset.current = {
+        x: e.clientX - pipPos.x,
+        y: e.clientY - pipPos.y
+      };
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+      if (!isDragging) return;
+      setPipPos({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
     // Determine the main "Spotlight" user
     // Priority: Pinned User > Someone with Video (Screen Sharing or Camera) > First Remote
     let spotlightUserId: string | null = pinnedUserId;
@@ -472,9 +497,21 @@ export const Communication: React.FC = () => {
     };
 
     return (
-      <div className={`
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={viewMode === 'pip' ? {
+          position: 'fixed',
+          left: `${pipPos.x}px`,
+          top: `${pipPos.y}px`,
+          width: '320px',
+          height: 'auto',
+          zIndex: 100
+        } : {}}
+        className={`
         ${viewMode === 'fullscreen' ? 'fixed inset-0 z-[100] bg-slate-900' : ''}
-        ${viewMode === 'pip' ? 'fixed bottom-4 right-4 z-[100] w-80 h-auto bg-slate-800 rounded-xl shadow-2xl border border-slate-700' : ''}
+        ${viewMode === 'pip' ? 'bg-slate-800 rounded-xl shadow-2xl border border-slate-700' : ''}
         ${viewMode === 'default' ? 'absolute inset-0 z-20 bg-slate-900' : ''}
         flex flex-col overflow-hidden transition-all duration-300
       `}>
@@ -527,9 +564,19 @@ export const Communication: React.FC = () => {
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white text-xs">Waiting...</div>
               )}
+
+              {/* Drag Handle */}
+              <button
+                onMouseDown={handleMouseDown}
+                className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded cursor-move hover:bg-indigo-600 transition-colors z-30 opacity-0 group-hover:opacity-100"
+                title="Drag to Move"
+              >
+                <Move size={14} />
+              </button>
+
               <button
                 onClick={() => setViewMode('default')}
-                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
               >
                 <Maximize2 className="text-white" size={24} />
               </button>

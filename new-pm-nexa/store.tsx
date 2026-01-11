@@ -1830,10 +1830,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const rejectIncomingCall = () => {
     if (incomingCall && currentUser) {
+      // 1. Hangup on the primary caller
       sendSignal('HANGUP', incomingCall.callerId, {});
-      sendSignal('HANGUP', incomingCall.callerId, {});
+
+      // 2. Hangup on any other pending callers (Group Mesh scenarios)
+      pendingOffersRef.current.forEach((_, callerId) => {
+        sendSignal('HANGUP', callerId, {});
+      });
+
       setIncomingCall(null);
-      pendingOffersRef.current.clear(); // Clear other queued offers
+      pendingOffersRef.current.clear();
     }
   };
 
