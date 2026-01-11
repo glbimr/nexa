@@ -40,6 +40,7 @@ export interface User {
   avatar: string;
   designation?: string;
   isOnline?: boolean;
+  lastSeen?: number;
   projectAccess: Record<string, ProjectAccessLevel>;
   dashboardConfig?: DashboardWidget[];
 }
