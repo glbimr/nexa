@@ -1457,6 +1457,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Broadcast removal to others (Sync state)
           // If we detect a timeout, we assume they are unresponsive for everyone.
           const currentCall = activeCallDataRef.current;
+
           if (currentCall) {
             currentCall.participantIds.forEach(pid => {
               if (pid !== recipientId && pid !== currentUser?.id) {
@@ -1466,7 +1467,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       }
-    }, 15000);
+    }, 60000);
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
