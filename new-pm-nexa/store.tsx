@@ -1329,6 +1329,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createPeerConnection = (recipientId: string) => {
     const pc = new RTCPeerConnection(RTC_CONFIG);
 
+    // Connection Timeout Logic: Auto-hangup if connection is not established within 15s
+    // This allows every participant (Caller and peers) to independently clean up if a user doesn't answer/connect.
+    setTimeout(() => {
+      if (pc.signalingState !== 'closed') {
+        const state = pc.connectionState;
+        // If still trying to connect after 15s, assume failed/ignored
+        if (state !== 'connected') {
+          console.warn(`Connection to ${recipientId} timed out (State: ${state}). Cleaning up.`);
+          pc.close();
+          peerConnectionsRef.current.delete(recipientId);
+          setActiveCallData(prev => {
+            if (!prev) return null;
+            // Remove the timed-out participant
+            return {
+              ...prev,
+              participantIds: prev.participantIds.filter(id => id !== recipientId)
+            };
+          });
+
+          // Optionally notify others? 
+          // If we initiated the add, maybe we should tell others "HANGUP" for this user?
+          // But since everyone runs this logic, eventually everyone drops them. 
+          // However, to make it instant for others if *I* am the main inviter:
+          // We can send a cleanup signal. But relying on distributed timeout is cleaner/less race-conflicts.
+        }
+      }
+    }, 15000);
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendSignal('CANDIDATE', recipientId, { candidate: event.candidate.toJSON() });
