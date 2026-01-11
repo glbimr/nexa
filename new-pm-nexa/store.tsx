@@ -1446,24 +1446,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (active) {
         for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
           const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
-          if (sender && sender.track !== active) {
+          if (sender) {
+            // Replace track to ensure the latest active track is being sent
             try { await sender.replaceTrack(active); } catch (e) { console.error('replaceTrack audio on unmute failed', e); }
-          } else if (!sender) {
-            // Only if we don't have a sender do we need to add track + negotiate
-            try {
-              pc.addTrack(active, audioStream);
-              // In this rare case (sender missing), we MIGHT need renegotiation, 
-              // but usually this path isn't hit for simple mute toggles.
-            } catch (e) { console.error('addTrack audio on unmute failed', e); }
+          } else {
+            // Only if we don't have a sender do we need to add track
+            try { pc.addTrack(active, audioStream); } catch (e) { console.error('addTrack audio on unmute failed', e); }
           }
         }
+        // Force renegotiation to sync potentially new track IDs or state with peers
+        // This is critical if the mic was toggled while the connection was still initializing (e.g. before 'connected' state)
+        await renegotiate();
       }
     }
 
-    // NO composeLocalStream() or renegotiate() here.
-    // Changing 'enabled' does not require stream recreation or signaling.
-    // This prevents the local video element from reloading (flickering).
   };
+
+  // NO composeLocalStream() or renegotiate() here.
+  // Changing 'enabled' does not require stream recreation or signaling.
+  // We used to do it, but it causes flicker/interruption.
+  // renegotiate(); // <--- This was the cause of the issue? No, we WANT to renegotiate if we changed tracks.
+  // But if we just toggled enabled=true/false without replacing track, we don't need it.
+  // HOWEVER, in the "glitch" scenario, we MIGHT have replaced track if the original was dead.
+  // My previous edit ADDED renegotiate() inside the if(newStatus) block.
+  // So we are good.
+
+  // Just closing the function properly.
+
+  // This prevents the local video element from reloading (flickering).
+
 
   const toggleCamera = async () => {
     // operate on localVideoStream only
