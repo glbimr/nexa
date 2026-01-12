@@ -98,7 +98,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
 const RTC_CONFIG: RTCConfiguration = {
   iceTransportPolicy: 'all',
-  iceCandidatePoolSize: 10,
+  // iceCandidatePoolSize: 10, // Removed to save resources/ports on strict networks
   iceServers: [
     // Google
     { urls: 'stun:stun.l.google.com:19302' },
@@ -1949,12 +1949,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setIncomingCall(null);
 
-      // Safety: Force a sanity check renegotiation/update after a short delay
-      // This helps if the initial audio track wasn't fully attached or recognized by the other end
-      // mimicking the "toggle mic" fix the user observed.
-      setTimeout(() => {
-        if (localStreamRef.current) renegotiate();
-      }, 1000);
+      // REMOVED: The forced renegotiation timeout. 
+      // It was causing 'Glare' (collision) where the Callee sent an Offer back to the Caller 
+      // while the initial connection was still stabilizing, leading to failure.
+      // We rely on the initial ANSWER and Candidate exchange to establish media.
 
       // Process Queued Offers (Mesh scenarios where invites arrived simultaneously)
       if (pendingOffersRef.current.size > 0) {
@@ -1980,7 +1978,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             // 2. Handle Offer
             await pc!.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-            const answer = await pc!.createAnswer();
+            processQueuedCandidates(pc!, senderId);
+            // Explicitly request audio/video
+            const answer = await pc!.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc!.setLocalDescription(answer);
             sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
           } catch (e) {
