@@ -16,7 +16,7 @@ export const Communication: React.FC = () => {
     messages, addMessage, currentUser, users, groups, createGroup, markChatRead, getUnreadCount,
     startCall, startGroupCall, addToCall, endCall, isInCall, activeCallData, localStream, remoteStreams, isScreenSharing, toggleScreenShare,
     isMicOn, isCameraOn, toggleMic, deletedMessageIds, clearChatHistory, hasAudioDevice, updateGroup, deleteGroup,
-    setSelectedChatId
+    setSelectedChatId, connectionState
   } = useApp();
 
   // UI State
@@ -656,13 +656,19 @@ export const Communication: React.FC = () => {
                         <img src={spotlightUser?.avatar} className="w-24 h-24 rounded-full border-4 border-slate-700 opacity-50 mb-4 animate-pulse" />
                         <span className="text-slate-400 text-lg">{spotlightUser?.name}</span>
                         {spotlightStream ? (
-                          <span className="text-slate-500 text-sm mt-2 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            <Mic size={14} /> Connected | Audio Only
+                          <span className={`text-sm mt-2 flex items-center gap-2 font-mono ${connectionState.get(spotlightUserId!) === 'connected' ? 'text-green-500' :
+                              connectionState.get(spotlightUserId!) === 'checking' ? 'text-yellow-500' :
+                                'text-red-500'
+                            }`}>
+                            <span className={`w-2 h-2 rounded-full animate-pulse ${connectionState.get(spotlightUserId!) === 'connected' ? 'bg-green-500' :
+                                connectionState.get(spotlightUserId!) === 'checking' ? 'bg-yellow-500' :
+                                  'bg-red-500'
+                              }`}></span>
+                            <Mic size={14} /> {connectionState.get(spotlightUserId!)?.toUpperCase() || 'CONNECTED'} | Audio Only
                           </span>
                         ) : (
                           <span className="text-slate-400 text-sm mt-2 flex items-center gap-2">
-                            <Phone size={14} className="animate-pulse" /> Calling...
+                            <Phone size={14} className="animate-pulse" /> {connectionState.get(spotlightUserId!)?.toUpperCase() || 'CALLING...'}
                           </span>
                         )}
                       </div>
@@ -758,7 +764,13 @@ export const Communication: React.FC = () => {
                         {!hasVideo && (
                           <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-800 z-10">
                             <img src={user?.avatar} className="w-8 h-8 rounded-full opacity-50 mb-1" />
-                            <span className="text-[10px] text-slate-400">{stream ? 'Connected' : 'Calling...'}</span>
+                            <span className={`text-[10px] font-mono ${connectionState.get(userId) === 'connected' ? 'text-green-500' :
+                              connectionState.get(userId) === 'checking' ? 'text-yellow-500' :
+                                (connectionState.get(userId) === 'failed' || connectionState.get(userId) === 'disconnected') ? 'text-red-500' :
+                                  'text-slate-400'
+                              }`}>
+                              {connectionState.get(userId) ? connectionState.get(userId)?.toUpperCase() : (stream ? 'STABILIZING...' : 'CALLING...')}
+                            </span>
                           </div>
                         )}
 

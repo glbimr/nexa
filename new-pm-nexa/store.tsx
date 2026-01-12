@@ -77,6 +77,7 @@ interface AppContextType {
   rejectIncomingCall: () => void;
   endCall: () => void;
   toggleScreenShare: () => Promise<void>;
+  connectionState: Map<string, string>; // Debugging: <ParticipantID, ICEState>
 
   // Preferences
   ringtone: string;
@@ -258,6 +259,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pendingCandidatesRef.current.delete(senderId);
     }
   };
+
+  const [connectionState, setConnectionState] = useState<Map<string, string>>(new Map()); // Debug
 
 
 
@@ -1521,12 +1524,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       }
-    }, 60000);
+    }, 15000);
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendSignal('CANDIDATE', recipientId, { candidate: event.candidate.toJSON() });
       }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      setConnectionState(prev => {
+        const newMap = new Map(prev);
+        newMap.set(recipientId, pc.iceConnectionState);
+        return newMap;
+      });
     };
 
     pc.ontrack = (event) => {
@@ -2164,8 +2175,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localVideoStreamRef.current = null;
       setLocalVideoStream(null);
     }
-    peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
+    peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => {
+      pc.onicecandidate = null;
+      pc.ontrack = null;
+      pc.onnegotiationneeded = null;
+      pc.close();
+    });
     peerConnectionsRef.current.clear();
+    setConnectionState(new Map());
     setLocalStream(null);
     setRemoteStreams(new Map());
     setIsInCall(false);
@@ -2417,6 +2434,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       markChatRead, getUnreadCount, totalUnreadChatCount,
       activeTab, setActiveTab,
       startCall, startGroupCall, addToCall, acceptIncomingCall, rejectIncomingCall, endCall, toggleScreenShare, toggleMic, toggleCamera,
+      connectionState, // Debug
       recipientBusy, waitToCall, cancelCallWait,
       ringtone, setRingtone,
       messageTone, setMessageTone,
