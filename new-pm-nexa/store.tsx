@@ -95,21 +95,32 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Configuration for WebRTC (using public STUN servers)
+// Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
 const RTC_CONFIG: RTCConfiguration = {
   iceTransportPolicy: 'all',
   iceCandidatePoolSize: 10,
   iceServers: [
+    // Google
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
+    // Twilio (Public)
     { urls: 'stun:global.stun.twilio.com:3478' },
+    // Others
     { urls: 'stun:stun.ekiga.net' },
     { urls: 'stun:stun.fwdnet.net' },
     { urls: 'stun:stun.ideasip.com' },
-    { urls: 'stun:stun.iptel.org' }
+    { urls: 'stun:stun.iptel.org' },
+    { urls: 'stun:stun.rixtelecom.se' },
+    { urls: 'stun:stun.schlund.de' },
+    { urls: 'stun:stun.softjoys.com' },
+    { urls: 'stun:stun.voiparound.com' },
+    { urls: 'stun:stun.voipbuster.com' },
+    { urls: 'stun:stun.voipstunt.com' },
+    { urls: 'stun:stun.voxgratia.org' },
+    { urls: 'stun:stun.xten.com' }
   ]
 };
 
@@ -1774,15 +1785,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Wait, if Host calls New User, and New User is Busy, Host SHOULD see Busy Modal. So keep isMeshAutoConnect = false.
 
     // 2. Host tells ALL existing participants to connect to New User
+    // REMOVED: This logic caused a race condition where peers tried to connect to the new user 
+    // BEFORE the new user had accepted the Host's call/setup their socket.
+    // We now rely on the 'ANSWER' handler (Lines ~752). When the New User answers the Host,
+    // the Host's 'ANSWER' handler triggers the 'ADD_TO_CALL' signal to all other peers.
+    // This ensures the New User is actually online and ready.
+
+    /* 
     activeCallData.participantIds.forEach(existingPid => {
-      if (existingPid !== recipientId) { // Should always be true as we push after
-        // Tell existing peers to connect to the new guy.
-        // The existing peer MUST Initiate the connection to the new guy (Standard Mesh Pattern: Old connects to New)
-        // OR New connects to Old?
-        // Usually, the "Inviter" (Host) tells existing peers "Hey, dial this new guy".
+      if (existingPid !== recipientId) { 
         sendSignal('ADD_TO_CALL', existingPid, { targetId: recipientId, shouldInitiate: true });
       }
-    });
+    }); 
+    */
 
     setActiveCallData(prev => prev ? { ...prev, participantIds: [...prev.participantIds, recipientId] } : null);
   };

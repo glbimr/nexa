@@ -307,14 +307,36 @@ const CallAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.srcObject = stream;
-      // Ensure audio is playing
-      audioRef.current.play().catch(e => {
-        // Auto-play policy might block this if no interaction, 
-        // but usually valid during a call flow.
-        console.warn("Global audio play warning:", e);
-      });
+
+      const playAudio = async () => {
+        try {
+          if (audioRef.current?.paused) {
+            await audioRef.current.play();
+          }
+        } catch (e) {
+          console.warn("Global audio play warning (retrying):", e);
+        }
+      };
+
+      // Attempt to play immediately
+      playAudio();
+
+      // Ensure it keeps playing (fix for some mobile browsers that pause background audio)
+      const interval = setInterval(() => {
+        if (audioRef.current && audioRef.current.paused && stream.active && stream.getAudioTracks().length > 0) {
+          console.log("Audio was paused, forcing play...");
+          playAudio();
+        }
+      }, 2000);
+
+      return () => clearInterval(interval);
     }
   }, [stream]);
+
+  // Ensure volume is up
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = 1.0;
+  }, []);
 
   return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />;
 };
