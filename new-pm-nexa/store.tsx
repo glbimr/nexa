@@ -100,18 +100,18 @@ const RTC_CONFIG: RTCConfiguration = {
   iceTransportPolicy: 'all',
   bundlePolicy: 'max-bundle', // Critical for Symmetric NATs: Multiplex all media on one port
   rtcpMuxPolicy: 'require',
-  // iceCandidatePoolSize: 10, // Removed to save resources/ports on strict networks
+  iceCandidatePoolSize: 2, // Moderate pool to speed up connection without port exhaustion
   iceServers: [
-    // Google
+    // Mix providers to avoid provider-specific blocking
+    { urls: 'stun:global.stun.twilio.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.xten.com' },
+    { urls: 'stun:stun.ekiga.net' },
+    // Backups
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    // Twilio (Public)
-    { urls: 'stun:global.stun.twilio.com:3478' },
-    // Others
-    { urls: 'stun:stun.ekiga.net' },
     { urls: 'stun:stun.fwdnet.net' },
     { urls: 'stun:stun.ideasip.com' },
     { urls: 'stun:stun.iptel.org' },
@@ -121,8 +121,7 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun.voiparound.com' },
     { urls: 'stun:stun.voipbuster.com' },
     { urls: 'stun:stun.voipstunt.com' },
-    { urls: 'stun:stun.voxgratia.org' },
-    { urls: 'stun:stun.xten.com' }
+    { urls: 'stun:stun.voxgratia.org' }
   ]
 };
 
