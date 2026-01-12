@@ -681,7 +681,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   processQueuedCandidates(pc, senderId); // Flush candidates after setting Remote Description
                   // If we are "Passively" accepting (we didn't initiate), we must Answer.
                   if (pc.signalingState === 'have-remote-offer') {
-                    const answer = await pc.createAnswer();
+                    // Explicitly request audio/video to ensure bi-directional media
+                    const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
                     await pc.setLocalDescription(answer);
                     sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
                   }
@@ -1918,7 +1919,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (incomingCall.offer) {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
         processQueuedCandidates(pc, incomingCall.callerId); // Flush candidates after setting Remote Description
-        const answer = await pc.createAnswer();
+        // Explicitly request audio/video in answer to ensure direction is sendrecv
+        const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(answer);
         sendSignal('ANSWER', incomingCall.callerId, { sdp: { type: answer.type, sdp: answer.sdp } });
       }
