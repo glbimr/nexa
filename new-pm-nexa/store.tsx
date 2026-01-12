@@ -1504,10 +1504,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           peerConnectionsRef.current.delete(recipientId);
           setActiveCallData(prev => {
             if (!prev) return null;
-            // Remove the timed-out participant
+            const newIds = prev.participantIds.filter(id => id !== recipientId);
+            if (newIds.length === 0) {
+              cleanupCall();
+              return null;
+            }
             return {
               ...prev,
-              participantIds: prev.participantIds.filter(id => id !== recipientId)
+              participantIds: newIds
             };
           });
 
