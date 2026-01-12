@@ -224,6 +224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const prevCameraWasOnRef = useRef<boolean>(false);
   const prevCameraStreamRef = useRef<MediaStream | null>(null);
   const usersRef = useRef(users);
+  const groupsRef = useRef(groups);
   const currentUserRef = useRef(currentUser);
 
   // Queue for offers that arrive while we are already ringing/busy with setup
@@ -356,8 +357,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localAudioStreamRef.current = localAudioStream;
     localVideoStreamRef.current = localVideoStream;
     usersRef.current = users;
+    groupsRef.current = groups;
     selectedChatIdRef.current = selectedChatId;
-  }, [incomingCall, isInCall, activeCallData, localStream, localAudioStream, localVideoStream, users, selectedChatId]);
+  }, [incomingCall, isInCall, activeCallData, localStream, localAudioStream, localVideoStream, users, groups, selectedChatId]);
 
   // Check available devices
   useEffect(() => {
@@ -472,43 +474,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // --- INCOMING MESSAGE SOUND LOGIC ---
             // Only play if:
             // 1. We are NOT the sender
-            // 2. Chat is NOT currently focused (so Red Dot would appear)
+            // 2. Chat is NOT currently focused
+            // 3. Message is actually intended for US (or a group we are in)
             if (currentUser && mapped.senderId !== currentUser.id) {
+              let isIntendedForMe = false;
               let messageChatId = mapped.senderId; // Default to sender for DM
 
               if (!mapped.recipientId) {
+                // General channel (everyone)
+                isIntendedForMe = true;
                 messageChatId = 'general';
+              } else if (mapped.recipientId === currentUser.id) {
+                // Direct Message to me
+                isIntendedForMe = true;
+                messageChatId = mapped.senderId;
               } else if (mapped.recipientId.startsWith('g-')) {
-                messageChatId = mapped.recipientId;
+                // Group Message
+                const group = groupsRef.current.find(g => g.id === mapped.recipientId);
+                // Check if we are a member
+                if (group && group.memberIds.includes(currentUser.id)) {
+                  isIntendedForMe = true;
+                  messageChatId = mapped.recipientId;
+                }
               }
-              // else DM: messageChatId is senderId.
 
-              // Check if we are currently looking at this chat
-              const isFocused = selectedChatIdRef.current === messageChatId;
+              // Only proceed if the message is actually for us
+              if (isIntendedForMe) {
+                // Check if we are currently looking at this chat
+                const isFocused = selectedChatIdRef.current === messageChatId;
 
-              // DEBUG LOGS
-              console.log('🔔 Sound Logic Debug:', {
-                myId: currentUser.id,
-                senderId: mapped.senderId,
-                chatIdForMsg: messageChatId,
-                focusedChatId: selectedChatIdRef.current,
-                isFocused,
-                willPlay: !isFocused
-              });
-
-              if (!isFocused) {
-                // Play Sound
-                try {
-                  const audio = new Audio(messageTone); // "Notification" - clear beep
-                  audio.volume = 0.6;
-                  const playPromise = audio.play();
-                  if (playPromise !== undefined) {
-                    playPromise.catch((e) => {
-                      console.error("Audio play failed:", e);
-                    });
+                if (!isFocused) {
+                  // Play Sound
+                  try {
+                    const audio = new Audio(messageTone);
+                    audio.volume = 0.6;
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {
+                      playPromise.catch((e) => {
+                        console.error("Audio play failed:", e);
+                      });
+                    }
+                  } catch (e) {
+                    console.error("Audio construction failed:", e);
                   }
-                } catch (e) {
-                  console.error("Audio construction failed:", e);
                 }
               }
             }
