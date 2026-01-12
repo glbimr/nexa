@@ -1520,25 +1520,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     pc.ontrack = (event) => {
-      // The receiver is unable to hear audio because sometimes tracks are added but not correctly mapped to the existing stream reference
-      // We force create a NEW MediaStream object to ensure the video element reloads the source
+      // Improve Stream Stability:
+      // We must avoid creating a new MediaStream object if one already exists for this user.
+      // Re-creating the stream object causes the <CallAudioPlayer> to re-mount/re-effect, which can interrupt audio.
+      const track = event.track;
+
       setRemoteStreams(prev => {
         const newMap = new Map<string, MediaStream>(prev);
-        const existingStream = newMap.get(recipientId);
-        const track = event.track;
+        let stream = newMap.get(recipientId);
 
-        if (existingStream) {
-          // Create a brand new stream combining existing tracks and the new one
-          const newStream = new MediaStream(existingStream.getTracks());
-          if (!newStream.getTracks().find(t => t.id === track.id)) {
-            newStream.addTrack(track);
+        if (stream) {
+          // Stream exists. Only add track if it's not already there.
+          // Note: We mutate the EXISTING stream object.
+          if (!stream.getTracks().find(t => t.id === track.id)) {
+            stream.addTrack(track);
           }
-          newMap.set(recipientId, newStream);
+          // We trigger a state update with the copied Map, but the stream *reference* stays the same.
+          // This prevents CallAudioPlayer from reloading.
         } else {
-          // Create new stream with this track
-          // If event.streams[0] is available, we could use it, but cloning is safer for React reactivity
-          const newStream = event.streams[0] ? new MediaStream(event.streams[0].getTracks()) : new MediaStream([track]);
-          newMap.set(recipientId, newStream);
+          // New stream needed. Prefer the one from the event if available (browser managed).
+          if (event.streams && event.streams[0]) {
+            stream = event.streams[0];
+          } else {
+            stream = new MediaStream([track]);
+          }
+          newMap.set(recipientId, stream);
         }
         return newMap;
       });
