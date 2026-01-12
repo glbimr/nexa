@@ -98,6 +98,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
 const RTC_CONFIG: RTCConfiguration = {
   iceTransportPolicy: 'all',
+  bundlePolicy: 'max-bundle', // Critical for Symmetric NATs: Multiplex all media on one port
+  rtcpMuxPolicy: 'require',
   // iceCandidatePoolSize: 10, // Removed to save resources/ports on strict networks
   iceServers: [
     // Google
