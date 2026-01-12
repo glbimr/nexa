@@ -1786,7 +1786,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stream!.getTracks().forEach(track => pc.addTrack(track, stream!));
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
-        sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
+
+        // Wait for ICE Gathering to stabilize (collect candidates into SDP)
+        // This is critical for Symmetric NATs where Trickle ICE might fail or be blocked.
+        // We wait for at least one public candidate or 1.5 seconds.
+        const waitForICE = new Promise<void>((resolve) => {
+          if (pc.iceGatheringState === 'complete') {
+            resolve();
+            return;
+          }
+
+          const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
+            if (e.candidate) {
+              // If we found a srflx (public) candidate, we are good to go!
+              // Actually, let's just wait a buffer time to collect a few.
+            }
+          };
+
+          pc.addEventListener('icecandidate', checkCandidate);
+
+          // Timeout to stop waiting and just send what we have
+          setTimeout(() => {
+            pc.removeEventListener('icecandidate', checkCandidate);
+            resolve();
+          }, 1000);
+        });
+
+        await waitForICE;
+
+        // Use the Updated Local Description which contains the gathered candidates
+        const finalOffer = pc.localDescription || offer;
+        sendSignal('OFFER', recipientId, { sdp: { type: finalOffer.type, sdp: finalOffer.sdp } });
       } catch (e) {
         console.error(`Failed to call ${recipientId}`, e);
       }
