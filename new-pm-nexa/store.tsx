@@ -1492,14 +1492,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createPeerConnection = (recipientId: string) => {
     const pc = new RTCPeerConnection(RTC_CONFIG);
 
-    // Connection Timeout Logic: Auto-hangup if connection is not established within 15s
+    // Connection Timeout Logic: Auto-hangup if connection is not established within 30s
     // This allows every participant (Caller and peers) to independently clean up if a user doesn't answer/connect.
-    setTimeout(() => {
+    // IMPORTANT: This only applies to INITIAL connection. Once connected, we rely on ICE state monitoring.
+    let wasEverConnected = false;
+
+    const timeoutId = setTimeout(() => {
       if (pc.signalingState !== 'closed') {
         const state = pc.connectionState;
-        // If still trying to connect after 15s, assume failed/ignored
-        if (state !== 'connected') {
+        // Only timeout if we NEVER connected. If we connected once, don't timeout on temporary issues.
+        if (!wasEverConnected && state !== 'connected') {
           console.warn(`Connection to ${recipientId} timed out (State: ${state}). Cleaning up.`);
+
+          // Send HANGUP signal to the other user so they know we're leaving
+          sendSignal('HANGUP', recipientId, {});
+
           pc.close();
           peerConnectionsRef.current.delete(recipientId);
           setActiveCallData(prev => {
@@ -1516,7 +1523,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
 
           // Broadcast removal to others (Sync state)
-          // If we detect a timeout, we assume they are unresponsive for everyone.
           const currentCall = activeCallDataRef.current;
 
           if (currentCall) {
@@ -1528,7 +1534,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       }
-    }, 15000);
+    }, 30000); // Increased to 30s to avoid false positives during screen sharing
+
+    // Track if connection ever succeeds
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'connected') {
+        wasEverConnected = true;
+        clearTimeout(timeoutId); // Clear timeout once connected
+      }
+    };
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -1542,6 +1556,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newMap.set(recipientId, pc.iceConnectionState);
         return newMap;
       });
+
+      // Handle permanent connection failures
+      if (pc.iceConnectionState === 'failed') {
+        console.warn(`ICE connection to ${recipientId} failed permanently.`);
+
+        // Send HANGUP to notify the other user
+        sendSignal('HANGUP', recipientId, {});
+
+        // Clean up this specific connection
+        pc.close();
+        peerConnectionsRef.current.delete(recipientId);
+
+        setActiveCallData(prev => {
+          if (!prev) return null;
+          const newIds = prev.participantIds.filter(id => id !== recipientId);
+          if (newIds.length === 0) {
+            cleanupCall();
+            return null;
+          }
+          return { ...prev, participantIds: newIds };
+        });
+      }
     };
 
     pc.ontrack = (event) => {
