@@ -1922,7 +1922,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
-      sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
+
+      // Wait for ICE Gathering to stabilize
+      const waitForICE = new Promise<void>((resolve) => {
+        if (pc.iceGatheringState === 'complete') {
+          resolve();
+          return;
+        }
+
+        const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
+          // Just wait for gathering to complete or timeout
+        };
+
+        pc.addEventListener('icecandidate', checkCandidate);
+
+        setTimeout(() => {
+          pc.removeEventListener('icecandidate', checkCandidate);
+          resolve();
+        }, 1000);
+      });
+
+      await waitForICE;
+
+      const finalOffer = pc.localDescription || offer;
+      sendSignal('OFFER', recipientId, { sdp: { type: finalOffer.type, sdp: finalOffer.sdp } });
     } catch (err) { console.error("Error initiating connection:", err); }
   }
 
@@ -1976,7 +1999,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Explicitly request audio/video in answer to ensure direction is sendrecv
         const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(answer);
-        sendSignal('ANSWER', incomingCall.callerId, { sdp: { type: answer.type, sdp: answer.sdp } });
+
+        // Wait for ICE Gathering to stabilize (same as in startGroupCall)
+        // This is critical for Symmetric NATs where Trickle ICE might fail
+        const waitForICE = new Promise<void>((resolve) => {
+          if (pc.iceGatheringState === 'complete') {
+            resolve();
+            return;
+          }
+
+          const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
+            // Just wait for gathering to complete or timeout
+          };
+
+          pc.addEventListener('icecandidate', checkCandidate);
+
+          // Timeout to stop waiting and just send what we have
+          setTimeout(() => {
+            pc.removeEventListener('icecandidate', checkCandidate);
+            resolve();
+          }, 1000);
+        });
+
+        await waitForICE;
+
+        // Use the Updated Local Description which contains the gathered candidates
+        const finalAnswer = pc.localDescription || answer;
+        sendSignal('ANSWER', incomingCall.callerId, { sdp: { type: finalAnswer.type, sdp: finalAnswer.sdp } });
       }
 
       setIsInCall(true);
