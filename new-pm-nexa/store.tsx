@@ -1579,6 +1579,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return pc;
   };
 
+  // Helper function to wait for ICE candidate gathering
+  // This ensures we include candidates in the SDP for better NAT traversal
+  const waitForICEGathering = async (pc: RTCPeerConnection): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      // If already complete, resolve immediately
+      if (pc.iceGatheringState === 'complete') {
+        resolve();
+        return;
+      }
+
+      let resolved = false;
+      const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
+        // Wait for null candidate (signals gathering complete) or timeout
+        if (e.candidate === null && !resolved) {
+          resolved = true;
+          pc.removeEventListener('icecandidate', checkCandidate);
+          resolve();
+        }
+      };
+
+      pc.addEventListener('icecandidate', checkCandidate);
+
+      // Timeout: send what we have after 1.5 seconds max
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          pc.removeEventListener('icecandidate', checkCandidate);
+          resolve();
+        }
+      }, 1500);
+    });
+  };
+
   // Compose a preview local stream from separate audio/video streams
   const composeLocalStream = () => {
     const tracks: MediaStreamTrack[] = [];
@@ -1802,32 +1835,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
 
-        // Wait for ICE Gathering to stabilize (collect candidates into SDP)
-        // This is critical for Symmetric NATs where Trickle ICE might fail or be blocked.
-        // We wait for at least one public candidate or 1.5 seconds.
-        const waitForICE = new Promise<void>((resolve) => {
-          if (pc.iceGatheringState === 'complete') {
-            resolve();
-            return;
-          }
-
-          const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
-            if (e.candidate) {
-              // If we found a srflx (public) candidate, we are good to go!
-              // Actually, let's just wait a buffer time to collect a few.
-            }
-          };
-
-          pc.addEventListener('icecandidate', checkCandidate);
-
-          // Timeout to stop waiting and just send what we have
-          setTimeout(() => {
-            pc.removeEventListener('icecandidate', checkCandidate);
-            resolve();
-          }, 1000);
-        });
-
-        await waitForICE;
+        // Wait for ICE Gathering to stabilize
+        await waitForICEGathering(pc);
 
         // Use the Updated Local Description which contains the gathered candidates
         const finalOffer = pc.localDescription || offer;
@@ -1924,25 +1933,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await pc.setLocalDescription(offer);
 
       // Wait for ICE Gathering to stabilize
-      const waitForICE = new Promise<void>((resolve) => {
-        if (pc.iceGatheringState === 'complete') {
-          resolve();
-          return;
-        }
-
-        const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
-          // Just wait for gathering to complete or timeout
-        };
-
-        pc.addEventListener('icecandidate', checkCandidate);
-
-        setTimeout(() => {
-          pc.removeEventListener('icecandidate', checkCandidate);
-          resolve();
-        }, 1000);
-      });
-
-      await waitForICE;
+      await waitForICEGathering(pc);
 
       const finalOffer = pc.localDescription || offer;
       sendSignal('OFFER', recipientId, { sdp: { type: finalOffer.type, sdp: finalOffer.sdp } });
@@ -2002,24 +1993,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Wait for ICE Gathering to stabilize (same as in startGroupCall)
         // This is critical for Symmetric NATs where Trickle ICE might fail
-        const waitForICE = new Promise<void>((resolve) => {
-          if (pc.iceGatheringState === 'complete') {
-            resolve();
-            return;
-          }
-
-          const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
-            // Just wait for gathering to complete or timeout
-          };
-
-          pc.addEventListener('icecandidate', checkCandidate);
-
-          // Timeout to stop waiting and just send what we have
-          setTimeout(() => {
-            pc.removeEventListener('icecandidate', checkCandidate);
-            resolve();
-          }, 1000);
-        });
+        const waitForICE = waitForICEGathering(pc);
 
         await waitForICE;
 
