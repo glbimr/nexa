@@ -103,17 +103,6 @@ const RTC_CONFIG: RTCConfiguration = {
   rtcpMuxPolicy: 'require',
   iceCandidatePoolSize: 2, // Moderate pool to speed up connection without port exhaustion
   iceServers: [
-    // Open Relay Project (Free Public TURN) - Critical for WiFi/Symmetric NAT issues
-    {
-      urls: [
-        'stun:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
     // Mix providers to avoid provider-specific blocking
     { urls: 'stun:global.stun.twilio.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
