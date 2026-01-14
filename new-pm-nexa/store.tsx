@@ -2207,20 +2207,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
           }
 
+          let relayFound = false;
+
           const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
-            if (e.candidate) {
-              // If we found a srflx (public) candidate, we are good to go!
-              // Actually, let's just wait a buffer time to collect a few.
+            if (e.candidate && e.candidate.type === 'relay') {
+              relayFound = true;
+              // If we found a relay candidate (the gold standard for restrictive NATs), 
+              // we can resolve shortly, as this is what we were likely waiting for.
+              // We give it a tiny buffer (300ms) to see if more come in, then go.
+              setTimeout(() => resolve(), 300);
             }
           };
 
           pc.addEventListener('icecandidate', checkCandidate);
 
           // Timeout to stop waiting and just send what we have
+          // Increased to 4000ms to allow time for Relay candidates on slow networks
           setTimeout(() => {
             pc.removeEventListener('icecandidate', checkCandidate);
             resolve();
-          }, 1000);
+          }, 4000);
         });
 
         await waitForICE;
@@ -2326,8 +2332,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
+        let relayFound = false;
+
         const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
-          // Just wait for gathering to complete or timeout
+          if (e.candidate && e.candidate.type === 'relay') {
+            relayFound = true;
+            setTimeout(() => resolve(), 300);
+          }
         };
 
         pc.addEventListener('icecandidate', checkCandidate);
@@ -2335,7 +2346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTimeout(() => {
           pc.removeEventListener('icecandidate', checkCandidate);
           resolve();
-        }, 1000);
+        }, 4000);
       });
 
       await waitForICE;
@@ -2398,14 +2409,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Wait for ICE Gathering to stabilize (same as in startGroupCall)
         // This is critical for Symmetric NATs where Trickle ICE might fail
+        // Wait for ICE Gathering to stabilize (same as in startGroupCall)
+        // This is critical for Symmetric NATs where Trickle ICE might fail
         const waitForICE = new Promise<void>((resolve) => {
           if (pc.iceGatheringState === 'complete') {
             resolve();
             return;
           }
 
+          let relayFound = false;
+
           const checkCandidate = (e: RTCPeerConnectionIceEvent) => {
-            // Just wait for gathering to complete or timeout
+            if (e.candidate && e.candidate.type === 'relay') {
+              relayFound = true;
+              setTimeout(() => resolve(), 300);
+            }
           };
 
           pc.addEventListener('icecandidate', checkCandidate);
@@ -2414,7 +2432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setTimeout(() => {
             pc.removeEventListener('icecandidate', checkCandidate);
             resolve();
-          }, 1000);
+          }, 4000);
         });
 
         await waitForICE;
