@@ -98,7 +98,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
 const RTC_CONFIG: RTCConfiguration = {
-  iceTransportPolicy: 'all',
+  // FORCE RELAY: This forces 100% of traffic through the TURN server (Proxy).
+  // This safeguards connection success on all networks (Jio, Airtel, Corporate) by bypassing P2P blocking.
+  iceTransportPolicy: 'relay',
   bundlePolicy: 'max-bundle', // Critical for Symmetric NATs: Multiplex all media on one port
   rtcpMuxPolicy: 'require',
   iceCandidatePoolSize: 2, // Moderate pool to speed up connection without port exhaustion
