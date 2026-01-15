@@ -98,25 +98,31 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
 const RTC_CONFIG: RTCConfiguration = {
-  // FORCE PROXY (Relay) MODE: 
-  // We set 'relay' to force all traffic through the OpenRelay TURN server.
-  // This bypasses local firewall/NAT issues (Jio/Airtel) by using the "Forced IP" of the proxy.
-  iceTransportPolicy: 'relay',
-  bundlePolicy: 'max-bundle',
+  iceTransportPolicy: 'all',
+  bundlePolicy: 'max-bundle', // Critical for Symmetric NATs: Multiplex all media on one port
   rtcpMuxPolicy: 'require',
-  iceCandidatePoolSize: 2,
+  iceCandidatePoolSize: 2, // Moderate pool to speed up connection without port exhaustion
   iceServers: [
-    // 1. Open Relay Project (See: https://www.metered.ca/tools/openrelay/)
-    // This is the "OpenSource Proxy Server" setting.
+    // 1. Open Relay Project (TURN) - Reliable Free TURN for Symmetric NAT (Jio Fiber, Airtel, Corporate Firewalls)
+    // Run by Metered.ca - Supports TCP/UDP on ports 80/443 to bypass strict firewalls
     {
       urls: [
+        'stun:openrelay.metered.ca:80',
         'turn:openrelay.metered.ca:80',
         'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp' // Forces TCP if UDP is blocked
+        'turn:openrelay.metered.ca:443?transport=tcp'
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
-    }
+    },
+
+    // 2. Primary STUN (Google) - High availability global STUN for non-symmetric NATs
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+
+    // 3. Secondary STUN (Twilio) - Robust backup
+    { urls: 'stun:global.stun.twilio.com:3478' }
   ]
 };
 
