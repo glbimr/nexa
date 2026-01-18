@@ -301,69 +301,44 @@ const IncomingCallOverlay: React.FC = () => {
 // --- Global Audio Handler ---
 // This component ensures audio (and potentially hidden video streams) stays connected
 // even when the user navigates away from the "Chat" tab (which unmounts Communication.tsx).
-// --- Global Audio Handler ---
-// This component ensures audio (and potentially hidden video streams) stays connected
-// even when the user navigates away from the "Chat" tab (which unmounts Communication.tsx).
 const CallAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    const audioElement = audioRef.current;
-    if (!audioElement) return;
+    if (audioRef.current) {
+      audioRef.current.srcObject = stream;
 
-    // 1. Setup Source
-    audioElement.srcObject = stream;
-    // Ensure volume is max
-    audioElement.volume = 1.0;
-
-    // 2. Robust Play Logic
-    const attemptPlay = async () => {
-      try {
-        if (audioElement.paused) {
-          await audioElement.play();
+      const playAudio = async () => {
+        try {
+          if (audioRef.current?.paused) {
+            await audioRef.current.play();
+          }
+        } catch (e) {
+          console.warn("Global audio play warning (retrying):", e);
         }
-      } catch (e) {
-        console.warn("Global audio play warning (retrying):", e);
-      }
-    };
+      };
 
-    // 3. Handle Dynamic Track Addition (Critical for "Unable to Listen" fixes)
-    // When a track is added (e.g. mic unmuted or delayed arrival), we MUST re-trigger playback
-    // and potentially re-assign srcObject to wake up the browser media engine.
-    const handleTrackChange = () => {
-      console.log("Remote track changed, refreshing audio player...");
-      if (audioElement.srcObject === stream) {
-        // Sometimes re-assigning triggers the element to pick up new tracks
-        audioElement.srcObject = null;
-        audioElement.srcObject = stream;
-      }
-      attemptPlay();
-    };
+      // Attempt to play immediately
+      playAudio();
 
-    stream.addEventListener('addtrack', handleTrackChange);
-    stream.addEventListener('removetrack', handleTrackChange);
+      // Ensure it keeps playing (fix for some mobile browsers that pause background audio)
+      const interval = setInterval(() => {
+        if (audioRef.current && audioRef.current.paused && stream.active && stream.getAudioTracks().length > 0) {
+          console.log("Audio was paused, forcing play...");
+          playAudio();
+        }
+      }, 2000);
 
-    // Initial play attempt
-    attemptPlay();
+      return () => clearInterval(interval);
+    }
+  }, [stream]);
 
-    // 4. Watchdog (Keep Alive) - Fixes mobile browser background throttling
-    const interval = setInterval(() => {
-      if (audioElement && audioElement.paused && stream.getAudioTracks().length > 0) {
-        console.log("Audio watchdog: detecting pause, forcing play...");
-        attemptPlay();
-      }
-    }, 2000);
+  // Ensure volume is up
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = 1.0;
+  }, []);
 
-    return () => {
-      stream.removeEventListener('addtrack', handleTrackChange);
-      stream.removeEventListener('removetrack', handleTrackChange);
-      clearInterval(interval);
-      // Clean up srcObject to stop playing when component unmounts (e.g. call end)
-      if (audioElement) audioElement.srcObject = null;
-    };
-  }, [stream]); // Dependency on stream reference is correct (we handle mutations via events)
-
-  return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ display: 'none' }} />;
+  return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />;
 };
 
 const GlobalCallManager: React.FC = () => {
