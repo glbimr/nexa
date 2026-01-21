@@ -106,14 +106,39 @@ const getRTCConfig = (): RTCConfiguration => {
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 2,
     iceServers: [
+      // Google Public STUN servers
       {
         urls: [
           'stun:stun.l.google.com:19302',
           'stun:stun1.l.google.com:19302',
-          'stun:stun2.l.google.com:19302'
+          'stun:stun2.l.google.com:19302',
+          'stun:stun3.l.google.com:19302',
+          'stun:stun4.l.google.com:19302'
         ]
       },
-      { urls: 'stun:global.stun.twilio.com:3478' }
+
+      // numb.viagenie.ca - Free public STUN/TURN (Very reliable for NAT traversal)
+      {
+        urls: [
+          'stun:numb.viagenie.ca',
+          'turn:numb.viagenie.ca'
+        ],
+        username: 'webrtc@live.com',
+        credential: 'muazkh'
+      },
+
+      // Twilio's public STUN
+      { urls: 'stun:global.stun.twilio.com:3478' },
+
+      // stunprotocol.org - Additional STUN fallback
+      { urls: 'stun:stun.stunprotocol.org:3478' },
+
+      // 3cx - Free TURN server (Good for symmetric NAT)
+      {
+        urls: 'turn:turn.bistri.com:80',
+        username: 'homeo',
+        credential: 'homeo'
+      }
     ]
   };
 };
