@@ -303,42 +303,58 @@ const IncomingCallOverlay: React.FC = () => {
 // even when the user navigates away from the "Chat" tab (which unmounts Communication.tsx).
 const CallAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.srcObject = stream;
 
-      const playAudio = async () => {
+      const attemptPlay = async () => {
         try {
-          if (audioRef.current?.paused) {
-            await audioRef.current.play();
-          }
+          await audioRef.current?.play();
+          setIsPlaying(true);
         } catch (e) {
-          console.warn("Global audio play warning (retrying):", e);
+          console.warn("Autoplay blocked, waiting for user interaction:", e);
+          // Optional: Add a one-time click listener to document to resume audio?
+          // For now, the UI overlay (IncomingCallOverlay) buttons usually satisfy the interaction requirement 
+          // IF the audio element is mounted/playing AFTER the click.
+          // Since this component is mounted likely AFTER 'Accept' is clicked, it should work.
+          // If it fails, we can try muted autoplay or just show a button.
         }
       };
 
-      // Attempt to play immediately
-      playAudio();
+      attemptPlay();
 
-      // Ensure it keeps playing (fix for some mobile browsers that pause background audio)
+      // Keepalive logic
       const interval = setInterval(() => {
         if (audioRef.current && audioRef.current.paused && stream.active && stream.getAudioTracks().length > 0) {
-          console.log("Audio was paused, forcing play...");
-          playAudio();
+          attemptPlay();
         }
-      }, 2000);
+      }, 3000);
 
       return () => clearInterval(interval);
     }
   }, [stream]);
 
-  // Ensure volume is up
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = 1.0;
-  }, []);
+  if (isPlaying) {
+    return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ display: 'none' }} />;
+  }
 
-  return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />;
+  // If not playing (blocked), show a tiny invisible button or rely on intervals.
+  // Actually, let's just return the audio element.
+  return (
+    <div style={{ position: 'fixed', bottom: 10, right: 10, zIndex: 9999 }}>
+      <audio ref={audioRef} autoPlay playsInline />
+      {!isPlaying && stream.active && (
+        <button
+          onClick={() => audioRef.current?.play().then(() => setIsPlaying(true))}
+          className="bg-red-500 text-white px-3 py-1 rounded-full text-xs shadow-lg animate-pulse"
+        >
+          Tap for Audio
+        </button>
+      )}
+    </div>
+  );
 };
 
 const GlobalCallManager: React.FC = () => {

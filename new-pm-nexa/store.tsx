@@ -106,7 +106,6 @@ const getRTCConfig = (): RTCConfiguration => {
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 2,
     iceServers: [
-      // 1. Public STUN Servers (Google) - High reliability for P2P
       {
         urls: [
           'stun:stun.l.google.com:19302',
@@ -114,21 +113,6 @@ const getRTCConfig = (): RTCConfiguration => {
           'stun:stun2.l.google.com:19302'
         ]
       },
-
-      // 2. Open Relay Project (Free Public TURN)
-      // Essential for cross-network (NAT) connections when P2P fails.
-      {
-        urls: [
-          'stun:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp'
-        ],
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-
-      // 3. Fallback STUN
       { urls: 'stun:global.stun.twilio.com:3478' }
     ]
   };
