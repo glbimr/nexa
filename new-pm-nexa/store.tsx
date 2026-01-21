@@ -1393,6 +1393,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const endCall = () => {
+    // Notify active participants that we are hanging up
+    if (activeCallDataRef.current) {
+      activeCallDataRef.current.participantIds.forEach(participantId => {
+        sendSignal('HANGUP', participantId, {});
+      });
+    }
+
     // cleanup
     peerConnectionsRef.current.forEach(pc => pc.close());
     peerConnectionsRef.current.clear();
@@ -1408,9 +1415,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveCallData(null);
     setIncomingCall(null);
     setConnectionState(new Map());
-
-    // notify disconnect?
-    // sendSignal('HANGUP', ..., {}); // If we knew who
   };
 
   // Placeholders for removed complex features to keep API valid
