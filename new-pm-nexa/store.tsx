@@ -747,7 +747,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIncomingCall(null);
     setIsInCall(false);
     setDeletedMessageIds(new Set());
-    cleanupCall();
+    endCall();
   };
 
   const addUser = async (user: User) => {
@@ -1336,7 +1336,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const acceptIncomingCall = async () => {
-    if (!incomingCall) return;
+    if (!incomingCall || !incomingCall.offer) return;
     const { callerId, offer } = incomingCall;
 
     setIncomingCall(null);
