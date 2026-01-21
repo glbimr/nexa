@@ -303,57 +303,111 @@ const IncomingCallOverlay: React.FC = () => {
 // even when the user navigates away from the "Chat" tab (which unmounts Communication.tsx).
 const CallAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const isMountedRef = useRef(true);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.srcObject = stream;
+    isMountedRef.current = true;
 
-      const attemptPlay = async () => {
-        try {
-          await audioRef.current?.play();
-          setIsPlaying(true);
-        } catch (e) {
-          console.warn("Autoplay blocked, waiting for user interaction:", e);
-          // Optional: Add a one-time click listener to document to resume audio?
-          // For now, the UI overlay (IncomingCallOverlay) buttons usually satisfy the interaction requirement 
-          // IF the audio element is mounted/playing AFTER the click.
-          // Since this component is mounted likely AFTER 'Accept' is clicked, it should work.
-          // If it fails, we can try muted autoplay or just show a button.
+    return () => {
+      isMountedRef.current = false;
+      // Cancel any pending play promise
+      if (playPromiseRef.current && audioRef.current) {
+        audioRef.current.pause();
+        playPromiseRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.srcObject = stream;
+
+    const attemptPlay = async () => {
+      if (!isMountedRef.current || !audio) return;
+
+      try {
+        // Store the promise so we can cancel it if needed
+        playPromiseRef.current = audio.play();
+        await playPromiseRef.current;
+        playPromiseRef.current = null;
+
+        if (isMountedRef.current) {
+          setShowButton(false);
         }
-      };
+      } catch (e: any) {
+        playPromiseRef.current = null;
 
-      attemptPlay();
-
-      // Keepalive logic
-      const interval = setInterval(() => {
-        if (audioRef.current && audioRef.current.paused && stream.active && stream.getAudioTracks().length > 0) {
-          attemptPlay();
+        if (!isMountedRef.current) {
+          // Component unmounted, ignore the error
+          return;
         }
-      }, 3000);
 
-      return () => clearInterval(interval);
-    }
+        if (e.name === 'NotAllowedError') {
+          console.warn("Autoplay blocked - showing user button");
+          setShowButton(true);
+        } else if (e.name === 'AbortError') {
+          console.warn("Play interrupted - will retry");
+          // Don't show button for AbortError, just retry
+        } else {
+          console.warn("Audio play error:", e);
+        }
+      }
+    };
+
+    // Initial play attempt
+    attemptPlay();
+
+    // Keep-alive interval
+    const interval = setInterval(() => {
+      if (!isMountedRef.current || !audio) return;
+
+      if (audio.paused && stream.active && stream.getAudioTracks().length > 0) {
+        attemptPlay();
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(interval);
+      if (audio) {
+        audio.pause();
+        audio.srcObject = null;
+      }
+    };
   }, [stream]);
 
-  if (isPlaying) {
-    return <audio ref={audioRef} autoPlay playsInline controls={false} style={{ display: 'none' }} />;
-  }
+  const handleManualPlay = async () => {
+    if (!audioRef.current || !isMountedRef.current) return;
 
-  // If not playing (blocked), show a tiny invisible button or rely on intervals.
-  // Actually, let's just return the audio element.
+    try {
+      await audioRef.current.play();
+      setShowButton(false);
+    } catch (e) {
+      console.error("Manual play failed:", e);
+    }
+  };
+
   return (
-    <div style={{ position: 'fixed', bottom: 10, right: 10, zIndex: 9999 }}>
-      <audio ref={audioRef} autoPlay playsInline />
-      {!isPlaying && stream.active && (
+    <>
+      <audio
+        ref={audioRef}
+        autoPlay
+        playsInline
+        style={{ display: 'none' }}
+      />
+      {showButton && stream.active && (
         <button
-          onClick={() => audioRef.current?.play().then(() => setIsPlaying(true))}
-          className="bg-red-500 text-white px-3 py-1 rounded-full text-xs shadow-lg animate-pulse"
+          onClick={handleManualPlay}
+          className="fixed bottom-20 right-4 z-[9999] bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg animate-pulse flex items-center gap-2"
         >
-          Tap for Audio
+          <Volume2 size={16} />
+          Tap to Enable Audio
         </button>
       )}
-    </div>
+    </>
   );
 };
 
