@@ -104,7 +104,7 @@ const getRTCConfig = (): RTCConfiguration => {
     iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    iceCandidatePoolSize: 2,
+    iceCandidatePoolSize: 10, // Increased to pre-gather more candidates
     iceServers: [
       // Google Public STUN servers
       {
@@ -117,28 +117,22 @@ const getRTCConfig = (): RTCConfiguration => {
         ]
       },
 
-      // numb.viagenie.ca - Free public STUN/TURN (Very reliable for NAT traversal)
+      // Metered.ca - Reliable free TURN servers (100GB/month free)
       {
         urls: [
-          'stun:numb.viagenie.ca',
-          'turn:numb.viagenie.ca'
+          'stun:stun.relay.metered.ca:80',
+          'turn:standard.relay.metered.ca:80',
+          'turn:standard.relay.metered.ca:80?transport=tcp',
+          'turn:standard.relay.metered.ca:443',
+          'turns:standard.relay.metered.ca:443?transport=tcp'
         ],
-        username: 'webrtc@live.com',
-        credential: 'muazkh'
+        username: '4f57fd31d4e8a754fe50800e',
+        credential: 'PnDfZ8aNm/0pjPVo'
       },
 
-      // Twilio's public STUN
+      // Additional STUN fallbacks
       { urls: 'stun:global.stun.twilio.com:3478' },
-
-      // stunprotocol.org - Additional STUN fallback
-      { urls: 'stun:stun.stunprotocol.org:3478' },
-
-      // 3cx - Free TURN server (Good for symmetric NAT)
-      {
-        urls: 'turn:turn.bistri.com:80',
-        username: 'homeo',
-        credential: 'homeo'
-      }
+      { urls: 'stun:stun.stunprotocol.org:3478' }
     ]
   };
 };
@@ -1279,15 +1273,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log(`[ICE] Candidate gathered for ${recipientId}:`, event.candidate.type, event.candidate.candidate);
           sendSignal('CANDIDATE', recipientId, { candidate: event.candidate.toJSON() });
+        } else {
+          console.log(`[ICE] Gathering complete for ${recipientId}`);
         }
       };
 
+      pc.onicegatheringstatechange = () => {
+        console.log(`[ICE] Gathering state for ${recipientId}: ${pc.iceGatheringState}`);
+      };
+
+      pc.onicecandidateerror = (event) => {
+        console.error(`[ICE] Candidate error for ${recipientId}:`, event);
+      };
+
       pc.oniceconnectionstatechange = () => {
-        console.log(`ICE State for ${recipientId}: ${pc.iceConnectionState}`);
+        console.log(`[ICE] Connection state for ${recipientId}: ${pc.iceConnectionState}`);
         setConnectionState(prev => new Map(prev).set(recipientId, pc.iceConnectionState));
-        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-          // Optional: Auto-retry logic could go here, but for now we let it stay failed to show red
+
+        if (pc.iceConnectionState === 'failed') {
+          console.error(`[ICE] Connection FAILED for ${recipientId}. Check if TURN servers are reachable.`);
+          // Log selected candidate pair for debugging
+          pc.getStats().then(stats => {
+            stats.forEach(report => {
+              if (report.type === 'candidate-pair' && report.selected) {
+                console.log('[ICE] Selected candidate pair:', report);
+              }
+            });
+          });
         }
       };
 
