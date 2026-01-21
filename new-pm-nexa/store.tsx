@@ -100,22 +100,23 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Configuration for WebRTC (Proxy / TURN Setup)
 // We use a function to allow dynamic IP configuration based on the current host
 const getRTCConfig = (): RTCConfiguration => {
-  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-
   return {
-    iceTransportPolicy: 'all', // Changed from 'relay' to 'all' to allow P2P/Srflx candidates if Relay fails. Critical fallback.
+    iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 2,
     iceServers: [
-      // 1. Self-Hosted Proxy (TURN)
+      // 1. Public STUN Servers (Google) - High reliability for P2P
       {
-        urls: `turn:${hostname}:3478`,
-        username: 'username',
-        credential: 'password'
+        urls: [
+          'stun:stun.l.google.com:19302',
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302'
+        ]
       },
 
-      // 2. Open Relay Project (Backup TURN)
+      // 2. Open Relay Project (Free Public TURN)
+      // Essential for cross-network (NAT) connections when P2P fails.
       {
         urls: [
           'stun:openrelay.metered.ca:80',
@@ -127,8 +128,7 @@ const getRTCConfig = (): RTCConfiguration => {
         credential: 'openrelayproject'
       },
 
-      // 3. STUN Servers
-      { urls: 'stun:stun.l.google.com:19302' },
+      // 3. Fallback STUN
       { urls: 'stun:global.stun.twilio.com:3478' }
     ]
   };
