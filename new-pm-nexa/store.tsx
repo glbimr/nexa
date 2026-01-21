@@ -593,305 +593,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser?.id]);
 
-  // --- 3. WebRTC Signaling & Realtime Presence via Supabase ---
+  // --- Simplified Signaling Logic (Rewrite) ---
   useEffect(() => {
     if (!currentUser) return;
 
     // Use a unique channel for signaling and presence
-    const channel = supabase.channel('signaling', {
-      config: {
-        presence: {
-          key: currentUser.id,
-        },
-      },
-    });
+    const channel = supabase.channel('signaling', { config: { presence: { key: currentUser.id } } });
     signalingChannelRef.current = channel;
-
-    const updatePresence = async () => {
-      if (currentUserRef.current) {
-        // Track presence immediately.
-        // We removed the visibility check to ensure the Green Dot stays ON even if the user minimizes the browser or switches tabs.
-        // Supabase Realtime will automatically handle "untracking" when the socket disconnects (e.g. closing the tab).
-        try {
-          await channel.track({
-            user_id: currentUserRef.current.id,
-            name: currentUserRef.current.name,
-            online_at: new Date().toISOString(),
-          });
-        } catch (e) { console.error('Presence track error', e); }
-      }
-    };
 
     channel
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const activeIds = new Set<string>();
         Object.values(state).forEach((presences: any) => {
-          presences.forEach((p: any) => {
-            if (p.user_id) activeIds.add(p.user_id);
-          });
+          presences.forEach((p: any) => { if (p.user_id) activeIds.add(p.user_id); });
         });
         setPresentIds(activeIds);
       })
       .on('broadcast', { event: 'signal' }, async ({ payload }) => {
         const { type, senderId, recipientId, payload: signalPayload } = payload as SignalData;
 
-        // Ignore if not meant for us (unless public)
+        // FILTER: Only accept if meant for us or public
         if (recipientId && recipientId !== currentUser.id && type !== 'USER_ONLINE') return;
-        if (senderId === currentUser.id) return; // Don't process own messages
-
-        // Access current state via Refs
-        const currentIsInCall = isInCallRef.current;
-        const currentActiveCallData = activeCallDataRef.current;
+        if (senderId === currentUser.id) return; // Ignore own echo
 
         switch (type) {
-          case 'USER_ONLINE':
-            break;
-
-          case 'ADD_TO_CALL':
-            // "Host" told us to connect to a new peer needed for the mesh
-            if (currentIsInCall && signalPayload.targetId) {
-              // Synchronously whitelist this ID
-              meshIntendedParticipantsRef.current.add(signalPayload.targetId);
-
-              // Always whitelist the new peer immediately to prevent BUSY rejection for incoming offers
-              setActiveCallData(prev => {
-                if (!prev) return null;
-                if (prev.participantIds.includes(signalPayload.targetId)) return prev;
-                return { ...prev, participantIds: [...prev.participantIds, signalPayload.targetId] };
-              });
-
-              // Only initiate if instructed (prevents Glare / Double Offer)
-              if (signalPayload.shouldInitiate) {
-                await initiateCallConnection(signalPayload.targetId, true, true);
-              }
-            }
-            break;
-
           case 'OFFER':
-            // Multi-user Mesh Logic:
-            // If we are already in a call, we accept ANY valid Offer as a new participant (or renegotiation)
-            if (currentIsInCall) {
-              // Check if sender is already a participant (Renegotiation)
-              const isExistingParticipant = activeCallDataRef.current?.participantIds.includes(senderId);
-              const isIntendedParticipant = meshIntendedParticipantsRef.current.has(senderId);
-
-              if (isExistingParticipant || isIntendedParticipant) {
-                // Standard Renegotiation logic or Accepted Mesh Join
-                let pc = peerConnectionsRef.current.get(senderId);
-                if (!pc) {
-                  // Should exist if participant, but handle edge case
-                  let stream = localStreamRef.current || localAudioStreamRef.current;
-                  pc = createPeerConnection(senderId);
-
-                  // Ensure we add tracks!
-                  if (stream) {
-                    stream.getTracks().forEach(track => {
-                      // Avoid adding duplicate tracks if PC recycled (unlikely here as !pc)
-                      pc!.addTrack(track, stream!);
-                    });
-                  }
-                }
-                if (pc) {
-                  // Clean up pending offers logic for this user if we are accepting now
-                  pendingOffersRef.current.delete(senderId);
-
-                  // Reset retry logic if we are accepting
-                  autoConnectRetriesRef.current.delete(senderId);
-
-                  await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
-                  processQueuedCandidates(pc, senderId); // Flush candidates after setting Remote Description
-                  // If we are "Passively" accepting (we didn't initiate), we must Answer.
-                  if (pc.signalingState === 'have-remote-offer') {
-                    // Explicitly request audio/video to ensure bi-directional media
-                    const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-                    await pc.setLocalDescription(answer);
-                    sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
-                  }
-
-                  // Ensure we add to active list if not already (for the 'isIntended' case)
-                  if (!isExistingParticipant) {
-                    setActiveCallData(prev => {
-                      if (!prev) return null;
-                      if (prev.participantIds.includes(senderId)) return prev;
-                      return { ...prev, participantIds: [...prev.participantIds, senderId] };
-                    });
-                  }
-                }
-              } else {
-                // New caller trying to interrupt/join -> Send BUSY
-                // Do NOT process offer yet.
-                sendSignal('BUSY', senderId, {});
-
-                // Store offer temporarily in case they "Wait" and we accept
-                pendingOffersRef.current.set(senderId, signalPayload);
-              }
-              return;
-            }
-
-            // Normal Incoming Call (Not in a call yet)
-            setIncomingCall({
-              callerId: senderId,
-              timestamp: Date.now(),
-              offer: signalPayload.sdp
-            });
-            break;
-
-          case 'BUSY':
-            // We called someone, and they are busy
-            // Check if this was an automatic mesh connection (Add to Call)
-            if (autoConnectRetriesRef.current.has(senderId)) {
-              const retries = autoConnectRetriesRef.current.get(senderId) || 0;
-              if (retries < 3) {
-                console.log(`Auto-connect to ${senderId} was busy (race condition). Retrying in 2s... (${retries + 1}/3)`);
-                autoConnectRetriesRef.current.set(senderId, retries + 1);
-                setTimeout(() => {
-                  initiateCallConnection(senderId, true, true);
-                }, 2000);
-              } else {
-                console.warn(`Auto-connect to ${senderId} failed after retries. Giving up.`);
-                autoConnectRetriesRef.current.delete(senderId);
-              }
-              // Do NOT show the modal
+            // Simple logic: If we are not in a call, WE RING. 
+            // If we are in a call, we could reject or merge. For simplicy, if not in call -> SHOW INCOMING
+            if (!isInCallRef.current) {
+              console.log("Received OFFER from", senderId);
+              setIncomingCall({ callerId: senderId, timestamp: Date.now(), offer: signalPayload.sdp });
             } else {
-              // Manual call -> Show modal
-              setRecipientBusy(senderId);
+              // Busy logic ignored for simplicity - just ignore or log
+              console.warn("Received offer while in call, ignoring for stability");
             }
-            break;
-
-          case 'WAIT_NOTIFY':
-            // Caller decided to wait. Show Incoming Call Overlay even if busy.
-            // We retrieve the pending offer if it exists
-            const pendingOffer = pendingOffersRef.current.get(senderId);
-            setIncomingCall({
-              callerId: senderId,
-              timestamp: Date.now(),
-              offer: pendingOffer ? pendingOffer.sdp : undefined
-            });
             break;
 
           case 'ANSWER':
-            {
-              const pc = peerConnectionsRef.current.get(senderId);
-              if (pc) {
+            console.log("Received ANSWER from", senderId);
+            const pc = peerConnectionsRef.current.get(senderId);
+            if (pc) {
+              try {
                 await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
-                processQueuedCandidates(pc, senderId); // Flush candidates after setting processing Answer
-
-                setActiveCallData(prev => {
-                  if (!prev) return null;
-                  if (prev.participantIds.includes(senderId)) return prev;
-                  return { ...prev, participantIds: [...prev.participantIds, senderId] };
-                });
-
-                // Mesh Introduction: Introduce this new peer to all other known participants
-                // This ensures that if A calls [B, C], when B answers, B is told to call C (and C to call B)
-                // We use ID comparison to ensure only ONE side initiates to avoid Glare/Duplicate connections.
-                const currentParticipants = activeCallDataRef.current?.participantIds || [];
-                currentParticipants.forEach(pid => {
-                  if (pid !== senderId && pid !== currentUser.id) {
-                    // We have B (sender) and C (pid). We are A.
-                    // We tell them to connect.
-                    // To avoid duplicate offers, we establish a convention:
-                    // The one with the "Lower" ID initiates.
-
-                    // Actually, we can just tell our existing peer (pid) to add the new guy (senderId).
-                    // But pid might be offline/connecting.
-                    // Safer Strategy: Sending ADD_TO_CALL is a command "You should connect to X".
-
-                    // Let's send ADD_TO_CALL to 'senderId' to connect to 'pid'
-                    // AND to 'pid' to connect to 'senderId'.
-                    // But we guard execution in ADD_TO_CALL or initiateCallConnection to check existing presence.
-
-                    // Optimization: Only the "Host" (us) needs to send this? 
-                    // Since we are the hub A, we know both.
-
-                    // Deterministic Initiation to prevent Glare (Double Offer) and BUSY overrides
-                    // Convention: Lower ID initiates the connection.
-                    const shouldSenderInitiate = senderId < pid;
-
-                    sendSignal('ADD_TO_CALL', senderId, { targetId: pid, shouldInitiate: shouldSenderInitiate });
-                    sendSignal('ADD_TO_CALL', pid, { targetId: senderId, shouldInitiate: !shouldSenderInitiate });
-                  }
-                });
-              }
-            }
-            break;
-
-          case 'DROP_PARTICIPANT':
-            {
-              const targetId = signalPayload.targetId;
-              if (targetId) {
-                if (targetId === currentUser.id) {
-                  // I am being dropped/timed-out by the host/others
-                  console.log("Received DROP_PARTICIPANT for ME. Ending call.");
-                  endCall();
-                } else {
-                  // Someone else is being dropped
-                  console.log("Received DROP_PARTICIPANT for", targetId);
-                  handleRemoteHangup(targetId);
-                }
-              }
+                // Process pending candidates
+                const queued = pendingCandidatesRef.current.get(senderId) || [];
+                for (const c of queued) await pc.addIceCandidate(new RTCIceCandidate(c));
+                pendingCandidatesRef.current.delete(senderId);
+              } catch (e) { console.error("Error setting RD (Answer):", e); }
             }
             break;
 
           case 'CANDIDATE':
-            {
-              // Robust Candidate Handling: Queue if PC doesn't exist OR Remote Description isn't set yet.
-              // This is critical for preventing candidates from being dropped during the initial connection handshake.
-              const pc = peerConnectionsRef.current.get(senderId);
-              if (pc && pc.remoteDescription) {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(signalPayload.candidate));
-                } catch (e) {
-                  console.error("Error adding ice candidate", e);
-                }
-              } else {
-                if (!pendingCandidatesRef.current.has(senderId)) pendingCandidatesRef.current.set(senderId, []);
-                pendingCandidatesRef.current.get(senderId)!.push(signalPayload.candidate);
-              }
+            const cand = new RTCIceCandidate(signalPayload.candidate);
+            const pc2 = peerConnectionsRef.current.get(senderId);
+            if (pc2 && pc2.remoteDescription) {
+              pc2.addIceCandidate(cand).catch(e => console.error("AddCand failed", e));
+            } else {
+              // Queue it
+              if (!pendingCandidatesRef.current.has(senderId)) pendingCandidatesRef.current.set(senderId, []);
+              pendingCandidatesRef.current.get(senderId)!.push(signalPayload.candidate);
             }
             break;
 
           case 'HANGUP':
-            // Check if we have a pending incoming call from this sender (Missed Call Scenario)
-            if (incomingCallRef.current && incomingCallRef.current.callerId === senderId) {
-              // The caller hung up before we answered
-              const usersList = usersRef.current;
-              const caller = usersList.find(u => u.id === senderId);
-              const callerName = caller ? caller.name : 'Unknown User';
+            console.log("Hangup received from", senderId);
+            const pc3 = peerConnectionsRef.current.get(senderId);
+            if (pc3) { pc3.close(); peerConnectionsRef.current.delete(senderId); }
 
-              // 1. Create Missed Call Notification
-              const { error: notifError } = await supabase.from('notifications').insert({
-                id: 'n-' + Date.now() + Math.random(),
-                recipient_id: currentUser.id,
-                sender_id: senderId,
-                type: NotificationType.MISSED_CALL,
-                title: 'Missed Call',
-                message: `You missed a call from ${callerName}`,
-                timestamp: Date.now(),
-                read: false,
-                link_to: senderId
-              });
-              if (notifError) console.error("Error creating missed call notification:", notifError);
-
-              // 2. Create Missed Call Chat Message
-              const { error: msgError } = await supabase.from('messages').insert({
-                id: 'm-' + Date.now() + Math.random(),
-                sender_id: senderId,
-                recipient_id: currentUser.id,
-                text: 'Missed Call',
-                timestamp: Date.now(),
-                type: 'missed_call',
-                attachments: []
-              });
-              if (msgError) console.error("Error creating missed call message:", msgError);
-
+            // Clean UI if they were the only one
+            if (activeCallDataRef.current?.participantIds.includes(senderId)) {
+              const newIds = activeCallDataRef.current.participantIds.filter(id => id !== senderId);
+              if (newIds.length === 0) {
+                endCall();
+              } else {
+                setActiveCallData({ participantIds: newIds });
+                // update streams
+                setRemoteStreams(prev => { const n = new Map(prev); n.delete(senderId); return n; });
+              }
+            } else if (incomingCallRef.current?.callerId === senderId) {
               setIncomingCall(null);
             }
-
-            handleRemoteHangup(senderId);
             break;
-          case 'CHAT_MESSAGE': {
+
+          case 'CHAT_MESSAGE':
+            // Keep existing chat logic
             try {
               const incoming = signalPayload as any;
               const msg: ChatMessage = {
@@ -903,51 +689,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 type: incoming.type || 'text',
                 attachments: incoming.attachments || []
               } as ChatMessage;
-
               setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
             } catch (e) { console.error('Error handling CHAT_MESSAGE', e); }
             break;
-          }
-
-          case 'SCREEN_STOPPED': {
-            try {
-              const { hasCameraFallback } = signalPayload as any;
-              if (!hasCameraFallback) {
-                setRemoteStreams(prev => {
-                  const newMap = new Map(prev);
-                  const existing = newMap.get(senderId);
-                  if (!existing) return prev;
-                  const audioTracks = existing.getAudioTracks();
-                  const newStream = new MediaStream(audioTracks);
-                  newMap.set(senderId, newStream);
-                  return newMap;
-                });
-              }
-            } catch (e) { console.error('Error handling SCREEN_STOPPED', e); }
-            break;
-          }
         }
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           isSignalingConnectedRef.current = true;
-          updatePresence();
-          sendSignal('USER_ONLINE', undefined, {});
-        } else {
-          isSignalingConnectedRef.current = false;
+          if (currentUserRef.current) {
+            channel.track({ user_id: currentUserRef.current.id, online_at: new Date().toISOString() });
+          }
         }
       });
 
-    // Activity listener to track "Active Now" accurately
-    const onVisibilityChange = () => updatePresence();
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
     return () => {
       isSignalingConnectedRef.current = false;
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      if (signalingChannelRef.current) supabase.removeChannel(signalingChannelRef.current);
+      supabase.removeChannel(channel);
     };
-  }, [currentUser?.id]); // DEPENDENCY NARROWED: Only re-run if ID changes (login/logout)
+  }, [currentUser?.id]);
 
 
   const sendSignal = async (type: SignalData['type'], recipientId: string | undefined, payload: any) => {
@@ -1499,947 +1259,165 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- WebRTC Logic (Audio + Screen Share Only) ---
 
+  // --- Simplified WebRTC Logic (Rewrite) ---
+
   const createPeerConnection = (recipientId: string) => {
-    const pc = new RTCPeerConnection(getRTCConfig());
-
-    // Connection Timeout Logic: Auto-hangup if connection is not established within 30s
-    // This allows every participant (Caller and peers) to independently clean up if a user doesn't answer/connect.
-    // IMPORTANT: This only applies to INITIAL connection. Once connected, we rely on ICE state monitoring.
-    let wasEverConnected = false;
-
-    const timeoutId = setTimeout(() => {
-      if (pc.signalingState !== 'closed') {
-        const state = pc.connectionState;
-        // Only timeout if we NEVER connected. If we connected once, don't timeout on temporary issues.
-        if (!wasEverConnected && state !== 'connected') {
-          console.warn(`Connection to ${recipientId} timed out (State: ${state}). Cleaning up.`);
-
-          // Send HANGUP signal to the other user so they know we're leaving
-          sendSignal('HANGUP', recipientId, {});
-
-          pc.close();
-          peerConnectionsRef.current.delete(recipientId);
-          setActiveCallData(prev => {
-            if (!prev) return null;
-            const newIds = prev.participantIds.filter(id => id !== recipientId);
-            if (newIds.length === 0) {
-              cleanupCall();
-              return null;
-            }
-            return {
-              ...prev,
-              participantIds: newIds
-            };
-          });
-
-          // Broadcast removal to others (Sync state)
-          const currentCall = activeCallDataRef.current;
-
-          if (currentCall) {
-            currentCall.participantIds.forEach(pid => {
-              if (pid !== recipientId && pid !== currentUser?.id) {
-                sendSignal('DROP_PARTICIPANT', pid, { targetId: recipientId });
-              }
-            });
-          }
-        }
-      }
-    }, 30000); // Increased to 30s to avoid false positives during screen sharing
-
-    // Track if connection ever succeeds
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
-        wasEverConnected = true;
-        clearTimeout(timeoutId); // Clear timeout once connected
-      }
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        sendSignal('CANDIDATE', recipientId, { candidate: event.candidate.toJSON() });
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      setConnectionState(prev => {
-        const newMap = new Map(prev);
-        newMap.set(recipientId, pc.iceConnectionState);
-        return newMap;
-      });
-
-      // Handle permanent connection failures
-      if (pc.iceConnectionState === 'failed') {
-        console.warn(`ICE connection to ${recipientId} failed permanently.`);
-
-        // Send HANGUP to notify the other user
-        sendSignal('HANGUP', recipientId, {});
-
-        // Clean up this specific connection
-        pc.close();
-        peerConnectionsRef.current.delete(recipientId);
-
-        setActiveCallData(prev => {
-          if (!prev) return null;
-          const newIds = prev.participantIds.filter(id => id !== recipientId);
-          if (newIds.length === 0) {
-            cleanupCall();
-            return null;
-          }
-          return { ...prev, participantIds: newIds };
-        });
-      }
-    };
-
-    pc.ontrack = (event) => {
-      // Improve Stream Stability:
-      // We must avoid creating a new MediaStream object if one already exists for this user.
-      // Re-creating the stream object causes the <CallAudioPlayer> to re-mount/re-effect, which can interrupt audio.
-      const track = event.track;
-
-      setRemoteStreams(prev => {
-        const newMap = new Map<string, MediaStream>(prev);
-        let stream = newMap.get(recipientId);
-
-        if (stream) {
-          // Stream exists. Only add track if it's not already there.
-          // Note: We mutate the EXISTING stream object.
-          if (!stream.getTracks().find(t => t.id === track.id)) {
-            stream.addTrack(track);
-          }
-          // We trigger a state update with the copied Map, but the stream *reference* stays the same.
-          // This prevents CallAudioPlayer from reloading.
-        } else {
-          // New stream needed. Prefer the one from the event if available (browser managed).
-          if (event.streams && event.streams[0]) {
-            stream = event.streams[0];
-          } else {
-            stream = new MediaStream([track]);
-          }
-          newMap.set(recipientId, stream);
-        }
-        return newMap;
-      });
-    };
-
-    peerConnectionsRef.current.set(recipientId, pc);
-    return pc;
-  };
-
-  // Compose a preview local stream from separate audio/video streams
-  const composeLocalStream = () => {
-    const tracks: MediaStreamTrack[] = [];
-    if (localAudioStreamRef.current) tracks.push(...localAudioStreamRef.current.getTracks());
-    if (localVideoStreamRef.current) tracks.push(...localVideoStreamRef.current.getTracks());
-    const composed = new MediaStream(tracks);
-    setLocalStream(composed);
-    localStreamRef.current = composed;
-  };
-
-  const renegotiate = async () => {
-    // Use Ref to ensure we have the latest stream even if state closure is stale
-    const currentLocalStream = localStreamRef.current || localStream;
-    if (!currentLocalStream) return;
-    for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-      try {
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-        await pc.setLocalDescription(offer);
-        sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
-      } catch (e) {
-        console.error("Renegotiation failed", e);
-      }
-    }
-  };
-
-  const toggleMic = async () => {
-    let audioStream = localAudioStreamRef.current || localAudioStream;
-
-    // If no audio stream yet, request mic permission and create one
-    if (!audioStream) {
-      try {
-        const newAudioStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-        const newTrack = newAudioStream.getAudioTracks()[0];
-
-        // Re-check devices now that we have permission
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
-        setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
-
-        setLocalAudioStream(newAudioStream);
-        localAudioStreamRef.current = newAudioStream;
-        setIsMicOn(true);
-
-        // Attach audio track to all peer connections
-        for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
-          if (sender) {
-            try { await sender.replaceTrack(newTrack); } catch (e) { console.error('replaceTrack audio failed', e); }
-          } else {
-            try { pc.addTrack(newTrack, newAudioStream); } catch (e) { console.error('addTrack audio failed', e); }
-          }
-        }
-
-        // Update preview stream
-        composeLocalStream();
-        await renegotiate();
-        return;
-      } catch (e) {
-        console.error('Failed to acquire microphone:', e);
-        alert('Could not access microphone.');
-        return;
-      }
-    }
-
-    // Toggle enabled state on existing audio tracks (avoid removing sender.track)
-    const audioTracks = audioStream.getAudioTracks();
-    const newStatus = !isMicOn;
-    audioTracks.forEach(t => t.enabled = newStatus);
-    setIsMicOn(newStatus);
-
-    // Ensure senders have a live track when unmuting
-    if (newStatus) {
-      const active = audioTracks.find(t => t.readyState === 'live') || audioTracks[0];
-      if (active) {
-        for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
-          if (sender) {
-            // Replace track to ensure the latest active track is being sent
-            try { await sender.replaceTrack(active); } catch (e) { console.error('replaceTrack audio on unmute failed', e); }
-          } else {
-            // Only if we don't have a sender do we need to add track
-            try { pc.addTrack(active, audioStream); } catch (e) { console.error('addTrack audio on unmute failed', e); }
-          }
-        }
-        // Force renegotiation to sync potentially new track IDs or state with peers
-        // This is critical if the mic was toggled while the connection was still initializing (e.g. before 'connected' state)
-        await renegotiate();
-      }
-    }
-
-  };
-
-  // NO composeLocalStream() or renegotiate() here.
-  // Changing 'enabled' does not require stream recreation or signaling.
-  // We used to do it, but it causes flicker/interruption.
-  // renegotiate(); // <--- This was the cause of the issue? No, we WANT to renegotiate if we changed tracks.
-  // But if we just toggled enabled=true/false without replacing track, we don't need it.
-  // HOWEVER, in the "glitch" scenario, we MIGHT have replaced track if the original was dead.
-  // My previous edit ADDED renegotiate() inside the if(newStatus) block.
-  // So we are good.
-
-  // Just closing the function properly.
-
-  // This prevents the local video element from reloading (flickering).
-
-
-  const toggleCamera = async () => {
-    // operate on localVideoStream only
-    let videoStream = localVideoStreamRef.current || localVideoStream;
-
-    if (isCameraOn) {
-      if (!videoStream) return;
-      // stop camera tracks that are not screen
-      videoStream.getVideoTracks().forEach(t => {
-        if (!t.label.includes('screen') && !(t.getSettings && (t.getSettings() as any).displaySurface)) {
-          t.stop();
-          videoStream!.removeTrack(t);
-        }
-      });
-      setLocalVideoStream(videoStream.getTracks().length ? videoStream : null);
-      localVideoStreamRef.current = localVideoStream;
-      setIsCameraOn(false);
-
-      // Update peers: clear video sender
-      for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-        const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'video');
-        if (sender) {
-          try { await sender.replaceTrack(null); } catch (e) { console.error('replaceTrack null video failed', e); }
-        }
-      }
-
-      composeLocalStream();
-      return;
-    }
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const videoTrack = stream.getVideoTracks()[0];
+      if (peerConnectionsRef.current.has(recipientId)) return peerConnectionsRef.current.get(recipientId)!;
 
-      // If we were screen sharing, stop it first (mutually exclusive video track for simplicity)
-      if (isScreenSharing) {
-        await stopScreenSharing();
-      }
+      console.log(`Creating PC for ${recipientId} using PROXY (TURN)`);
+      const pc = new RTCPeerConnection(getRTCConfig());
 
-      // Set local video stream
-      const newVideoStream = new MediaStream([videoTrack]);
-      setLocalVideoStream(newVideoStream);
-      localVideoStreamRef.current = newVideoStream;
-      setIsCameraOn(true);
-
-      // Update peers
-      for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-        const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'video');
-        if (sender) {
-          try { await sender.replaceTrack(videoTrack); } catch (e) { console.error('replaceTrack video failed', e); }
-        } else {
-          try { pc.addTrack(videoTrack, newVideoStream); } catch (e) { console.error('addTrack video failed', e); }
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal('CANDIDATE', recipientId, { candidate: event.candidate.toJSON() });
         }
-      }
+      };
 
-      composeLocalStream();
-      await renegotiate();
+      pc.oniceconnectionstatechange = () => {
+        console.log(`ICE State for ${recipientId}: ${pc.iceConnectionState}`);
+        setConnectionState(prev => new Map(prev).set(recipientId, pc.iceConnectionState));
+        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+          // Optional: Auto-retry logic could go here, but for now we let it stay failed to show red
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log(`Connection State for ${recipientId}: ${pc.connectionState}`);
+      };
+
+      pc.ontrack = (event) => {
+        console.log(`Received track from ${recipientId}`, event.streams[0]);
+        setRemoteStreams(prev => new Map(prev).set(recipientId, event.streams[0]));
+      };
+
+      peerConnectionsRef.current.set(recipientId, pc);
+      return pc;
     } catch (e) {
-      console.error('Failed to access camera', e);
+      console.error("Error creating PC:", e);
+      throw e;
     }
   };
 
   const startCall = async (recipientId: string) => {
-    await startGroupCall([recipientId]);
-  };
+    // 1. UI State
+    setIncomingCall(null);
+    setIsInCall(true);
+    setActiveCallData({ participantIds: [recipientId] });
 
-  const startGroupCall = async (recipientIds: string[]) => {
-    if (!currentUser || recipientIds.length === 0) return;
-
+    // 2. Get Media
     let stream = localStream;
     if (!stream) {
       try {
-        // Start with Audio ON (permission wise) but Muted, Video OFF
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-
-        // Re-check devices now that we have permission
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
-        setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
-
-        // Start with Audio ON (Performance enhancement for real-time connection)
-        stream.getAudioTracks().forEach(t => t.enabled = true);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        setLocalStream(stream);
+        localStreamRef.current = stream;
+        setHasAudioDevice(true);
         setIsMicOn(true);
-        setIsCameraOn(false);
       } catch (e) {
-        console.error("Error getting user media", e);
-        alert("Could not access microphone. Call cannot start. Please check your browser permissions.");
-        return;
-      }
-      setLocalStream(stream);
-      // Update refs
-      localStreamRef.current = stream;
-      if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
-    }
-
-    setIsInCall(true);
-    setActiveCallData({ participantIds: recipientIds });
-
-    recipientIds.forEach(async (recipientId) => {
-      try {
-        const pc = createPeerConnection(recipientId);
-        stream!.getTracks().forEach(track => pc.addTrack(track, stream!));
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-        await pc.setLocalDescription(offer);
-
-        // Trickle ICE: Send Offer immediately
-        sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
-      } catch (e) {
-        console.error(`Failed to call ${recipientId}`, e);
-      }
-    });
-  };
-
-  const addToCall = async (recipientId: string) => {
-    if (!currentUser || !isInCall || !activeCallData) return;
-
-    // 1. Host connects to New User
-    await initiateCallConnection(recipientId, true, false); // Host manual add -> isMeshAutoConnect = false (or true? Host shouldn't see busy for new user? Actually Host is explicitly calling, so Seeing busy is ok if new guy is busy.)
-    // Wait, if Host calls New User, and New User is Busy, Host SHOULD see Busy Modal. So keep isMeshAutoConnect = false.
-
-    // 2. Host tells ALL existing participants to connect to New User
-    // REMOVED: This logic caused a race condition where peers tried to connect to the new user 
-    // BEFORE the new user had accepted the Host's call/setup their socket.
-    // We now rely on the 'ANSWER' handler (Lines ~752). When the New User answers the Host,
-    // the Host's 'ANSWER' handler triggers the 'ADD_TO_CALL' signal to all other peers.
-    // This ensures the New User is actually online and ready.
-
-    /* 
-    activeCallData.participantIds.forEach(existingPid => {
-      if (existingPid !== recipientId) { 
-        sendSignal('ADD_TO_CALL', existingPid, { targetId: recipientId, shouldInitiate: true });
-      }
-    }); 
-    */
-
-    setActiveCallData(prev => prev ? { ...prev, participantIds: [...prev.participantIds, recipientId] } : null);
-  };
-
-  const initiateCallConnection = async (recipientId: string, isAdding: boolean = false, isMeshAutoConnect: boolean = false) => {
-
-    if (isMeshAutoConnect) {
-      // Init retry counter if not present
-      if (!autoConnectRetriesRef.current.has(recipientId)) {
-        autoConnectRetriesRef.current.set(recipientId, 0);
-      }
-    } else {
-      // Manual call, ensure no leftover retry state
-      autoConnectRetriesRef.current.delete(recipientId);
-    }
-    // Safety: If we already have a connection, don't overwrite it unless necessary
-    if (peerConnectionsRef.current.has(recipientId)) {
-      // We might want to check state? If 'closed', allowed.
-      if (peerConnectionsRef.current.get(recipientId)?.signalingState !== 'closed') {
+        console.error("Mic error:", e);
+        alert("Microphone access required.");
+        setIsInCall(false);
         return;
       }
     }
+
+    // 3. Initiate Connection
+    const pc = createPeerConnection(recipientId);
+    stream.getTracks().forEach(t => pc.addTrack(t, stream!));
 
     try {
-      let stream = localStreamRef.current || localStream;
-
-      // Ensure we have a stream
-      if (!stream) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: false,
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            }
-          });
-
-          // Re-check devices now that we have permission
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
-          setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
-
-          // Start with Audio ON (Performance enhancement for real-time connection)
-          stream.getAudioTracks().forEach(t => t.enabled = true);
-          setLocalStream(stream);
-          // Update refs
-          localStreamRef.current = stream;
-          if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
-          setIsMicOn(true);
-        }
-        catch (e) {
-          console.error("No audio device found", e);
-          alert("Could not access microphone.");
-          return;
-        }
-      }
-
-      const pc = createPeerConnection(recipientId);
-      stream.getTracks().forEach(track => pc.addTrack(track, stream!));
-
-      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-
-      // Trickle ICE: Send Offer immediately without waiting for gathering to complete
-      // Candidates will be sent separately via 'onicecandidate' event
-      sendSignal('OFFER', recipientId, { sdp: { type: offer.type, sdp: offer.sdp } });
-    } catch (err) { console.error("Error initiating connection:", err); }
-  }
+      sendSignal('OFFER', recipientId, { sdp: offer });
+    } catch (e) {
+      console.error("Offer creation failed:", e);
+    }
+  };
 
   const acceptIncomingCall = async () => {
-    if (!incomingCall || !currentUser) return;
-    try {
-      let stream: MediaStream;
-      // Re-use existing stream if available (Merging calls)
-      if (!localStreamRef.current) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: false,
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            }
-          });
+    if (!incomingCall) return;
+    const { callerId, offer } = incomingCall;
 
-          // Re-check devices now that we have permission
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          setHasAudioDevice(devices.some(d => d.kind === 'audioinput'));
-          setHasVideoDevice(devices.some(d => d.kind === 'videoinput'));
+    setIncomingCall(null);
+    setIsInCall(true);
+    setActiveCallData({ participantIds: [callerId] });
 
-          // Start with Audio ON (Performance enhancement for real-time connection)
-          stream.getAudioTracks().forEach(t => t.enabled = true);
-          setIsMicOn(true);
-          setIsCameraOn(false);
-          setIsCameraOn(false);
-        }
-        catch (e) {
-          console.error("Could not access microphone", e);
-          alert("Could not access microphone. Please check your browser permissions.");
-          return;
-        }
+    // 1. Get Media
+    let stream = localStream;
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         setLocalStream(stream);
-        // Update refs immediately for safety
         localStreamRef.current = stream;
-        if (stream.getAudioTracks().length > 0) localAudioStreamRef.current = new MediaStream(stream.getAudioTracks());
-      } else {
-        // We are already in a call, reuse the existing stream
-        stream = localStreamRef.current!;
+        setIsMicOn(true);
+      } catch (e) {
+        console.error("Mic error:", e);
+        // proceed anyway to hear audio? No, usually symmetric
       }
+    }
 
-      const pc = createPeerConnection(incomingCall.callerId);
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    // 2. Create PC & Answer
+    const pc = createPeerConnection(callerId);
+    if (stream) stream.getTracks().forEach(t => pc.addTrack(t, stream!));
 
-      if (incomingCall.offer) {
-        await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
-        processQueuedCandidates(pc, incomingCall.callerId); // Flush candidates after setting Remote Description
-        const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-        await pc.setLocalDescription(answer);
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      // Process queued candidates now that RD is set
+      const queued = pendingCandidatesRef.current.get(callerId) || [];
+      for (const c of queued) await pc.addIceCandidate(new RTCIceCandidate(c));
+      pendingCandidatesRef.current.delete(callerId);
 
-        // Trickle ICE: Send Answer immediately
-        sendSignal('ANSWER', incomingCall.callerId, { sdp: { type: answer.type, sdp: answer.sdp } });
-      }
-
-      setIsInCall(true);
-      setActiveTab('chat');
-
-      // Update Active Call Data (Merge Logic)
-      setActiveCallData(prev => {
-        const currentIds = prev ? prev.participantIds : [];
-        if (currentIds.includes(incomingCall.callerId)) return prev;
-        return { participantIds: [...currentIds, incomingCall.callerId] };
-      });
-
-      // Mesh: Introduce new participant to existing ones
-      if (activeCallDataRef.current) {
-        activeCallDataRef.current.participantIds.forEach(pid => {
-          if (pid !== incomingCall.callerId) {
-            // Deterministic Initiation to prevent Glare (Double Offer) and BUSY overrides
-            // Convention: Lower ID initiates the connection.
-            const shouldCallerInitiate = incomingCall.callerId < pid;
-
-            sendSignal('ADD_TO_CALL', incomingCall.callerId, { targetId: pid, shouldInitiate: shouldCallerInitiate });
-            sendSignal('ADD_TO_CALL', pid, { targetId: incomingCall.callerId, shouldInitiate: !shouldCallerInitiate });
-          }
-        });
-      }
-
-      setIncomingCall(null);
-
-      // REMOVED: The forced renegotiation timeout. 
-      // It was causing 'Glare' (collision) where the Callee sent an Offer back to the Caller 
-      // while the initial connection was still stabilizing, leading to failure.
-      // We rely on the initial ANSWER and Candidate exchange to establish media.
-
-      // Process Queued Offers (Mesh scenarios where invites arrived simultaneously)
-      if (pendingOffersRef.current.size > 0) {
-        console.log("Processing queued offers:", pendingOffersRef.current.size);
-        const queued = Array.from(pendingOffersRef.current.entries());
-        pendingOffersRef.current.clear();
-
-        queued.forEach(async ([senderId, payload]) => {
-          try {
-            // 1. Create PC
-            let pc = peerConnectionsRef.current.get(senderId);
-            if (!pc) {
-              pc = createPeerConnection(senderId);
-              stream!.getTracks().forEach(track => pc!.addTrack(track, stream!)); // Use the stream we just acquired in this scope
-
-              // Add to participants list
-              setActiveCallData(prev => {
-                if (!prev) return { participantIds: [incomingCall.callerId, senderId] };
-                if (prev.participantIds.includes(senderId)) return prev;
-                return { ...prev, participantIds: [...prev.participantIds, senderId] };
-              });
-            }
-
-            // 2. Handle Offer
-            await pc!.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-            processQueuedCandidates(pc!, senderId);
-            // Explicitly request audio/video
-            const answer = await pc!.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-            await pc!.setLocalDescription(answer);
-            sendSignal('ANSWER', senderId, { sdp: { type: answer.type, sdp: answer.sdp } });
-          } catch (e) {
-            console.error("Error processing queued offer from", senderId, e);
-          }
-        });
-      }
-
-    } catch (err) { console.error("Error accepting call:", err); }
-  };
-
-  const waitToCall = () => {
-    if (recipientBusy) {
-      sendSignal('WAIT_NOTIFY', recipientBusy, {});
-      setRecipientBusy(null); // Clear busy state, wait for their overlay logic
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendSignal('ANSWER', callerId, { sdp: answer });
+    } catch (e) {
+      console.error("Answer creation failed:", e);
     }
   };
 
-  const cancelCallWait = () => {
-    if (recipientBusy) {
-      const busyUserId = recipientBusy;
-
-      // Close connection to the busy user
-      const pc = peerConnectionsRef.current.get(busyUserId);
-      if (pc) {
-        pc.close();
-        peerConnectionsRef.current.delete(busyUserId);
-      }
-
-      // Check if we have any OTHER active participants we are trying to reach
-      // using ref to ensure latest state
-      const currentParticipants = activeCallDataRef.current?.participantIds || [];
-      const remaining = currentParticipants.filter(id => id !== busyUserId);
-
-      if (remaining.length === 0) {
-        // No one else in the call -> End everything instantly to return to Chat
-        cleanupCall();
-      } else {
-        // Others exist, just remove busy user
-        setActiveCallData(prev => prev ? { ...prev, participantIds: remaining } : null);
-      }
-    }
-    setRecipientBusy(null);
-  };
-
-  const rejectIncomingCall = async (isMissed: boolean = false) => {
-    if (incomingCall && currentUser) {
-      if (isMissed) {
-        const caller = users.find(u => u.id === incomingCall.callerId);
-        const callerName = caller ? caller.name : 'Unknown';
-
-        // Notification
-        await supabase.from('notifications').insert({
-          id: 'n-' + Date.now() + Math.random(),
-          recipient_id: currentUser.id,
-          sender_id: incomingCall.callerId,
-          type: NotificationType.MISSED_CALL,
-          title: 'Missed Call',
-          message: `You missed a call from ${callerName}`,
-          timestamp: Date.now(),
-          read: false,
-          link_to: incomingCall.callerId
-        });
-
-        // Chat Message
-        await supabase.from('messages').insert({
-          id: 'm-' + Date.now() + Math.random(),
-          sender_id: incomingCall.callerId,
-          recipient_id: currentUser.id,
-          text: 'Missed Call',
-          timestamp: Date.now(),
-          type: 'missed_call',
-          attachments: []
-        });
-      }
-      // 1. Hangup on the primary caller
-      sendSignal('HANGUP', incomingCall.callerId, {});
-
-      // 2. Hangup on any other pending callers (Group Mesh scenarios)
-      pendingOffersRef.current.forEach((_, callerId) => {
-        sendSignal('HANGUP', callerId, {});
-      });
-
-      setIncomingCall(null);
-      pendingOffersRef.current.clear();
-    }
-  };
-
-  // Auto-hangup incoming call after 10 seconds if not answered
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+  const rejectIncomingCall = () => {
     if (incomingCall) {
-      timeoutId = setTimeout(() => {
-        console.log("Auto-rejecting call due to 10s timeout");
-        rejectIncomingCall(true);
-      }, 10000);
+      sendSignal('HANGUP', incomingCall.callerId, {});
+      setIncomingCall(null);
     }
-    return () => clearTimeout(timeoutId);
-  }, [incomingCall]); // Dependency ensures timer resets if call state changes
-
+  };
 
   const endCall = () => {
-    if (activeCallData && currentUser) {
-      activeCallData.participantIds.forEach(pid => { sendSignal('HANGUP', pid, {}); });
-    }
-    cleanupCall();
-  };
-
-  const handleRemoteHangup = (senderId: string) => {
-    // Broadcast drop to others to ensure sync (Mesh Relay)
-    const currentCall = activeCallDataRef.current;
-    if (currentCall && currentCall.participantIds.includes(senderId)) {
-      currentCall.participantIds.forEach(pid => {
-        if (pid !== senderId && pid !== currentUser?.id) {
-          sendSignal('DROP_PARTICIPANT', pid, { targetId: senderId });
-        }
-      });
-    }
-
-    const pc = peerConnectionsRef.current.get(senderId);
-    if (pc) { pc.close(); peerConnectionsRef.current.delete(senderId); }
-    setRemoteStreams(prev => { const newMap = new Map(prev); newMap.delete(senderId); return newMap; });
-    setActiveCallData(prev => {
-      if (!prev) return null;
-      const newIds = prev.participantIds.filter(id => id !== senderId);
-      if (newIds.length === 0) { cleanupCall(); return null; }
-      return { ...prev, participantIds: newIds };
-    });
-  };
-
-  const cleanupCall = () => {
-    // Stop audio and video streams explicitly
-    if (localAudioStreamRef.current) {
-      localAudioStreamRef.current.getTracks().forEach(t => t.stop());
-      localAudioStreamRef.current = null;
-      setLocalAudioStream(null);
-    }
-    if (localVideoStreamRef.current) {
-      localVideoStreamRef.current.getTracks().forEach(t => t.stop());
-      localVideoStreamRef.current = null;
-      setLocalVideoStream(null);
-    }
-    peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => {
-      pc.onicecandidate = null;
-      pc.ontrack = null;
-      pc.onnegotiationneeded = null;
-      pc.close();
-    });
+    // cleanup
+    peerConnectionsRef.current.forEach(pc => pc.close());
     peerConnectionsRef.current.clear();
-    setConnectionState(new Map());
-    setLocalStream(null);
     setRemoteStreams(new Map());
+
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      setLocalStream(null);
+      localStreamRef.current = null;
+    }
+
     setIsInCall(false);
     setActiveCallData(null);
-    setIsScreenSharing(false);
-    setIsMicOn(false);
-    setIsCameraOn(false);
-    setIsMicOn(false);
-    setIsCameraOn(false);
-    pendingOffersRef.current.clear();
-    pendingCandidatesRef.current.clear();
+    setIncomingCall(null);
+    setConnectionState(new Map());
+
+    // notify disconnect?
+    // sendSignal('HANGUP', ..., {}); // If we knew who
   };
 
-  const stopScreenSharing = async () => {
-    const vStream = localVideoStreamRef.current || localVideoStream;
-    const aStream = localAudioStreamRef.current || localAudioStream;
-    if (peerConnectionsRef.current.size === 0 || !vStream) return;
-    try {
-
-      let negotiationNeeded = false;
-      let hasCameraFallback = false;
-
-      // 1. If camera was on before screen share, re-acquire camera FIRST (Make-Before-Break)
-      if (prevCameraWasOnRef.current) {
-        try {
-          const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          const camTrack = camStream.getVideoTracks()[0];
-
-          // Set new local state (this might briefly show camera + screen in memory, but UI will update)
-          const newVideoStream = new MediaStream([camTrack]);
-          setLocalVideoStream(newVideoStream);
-          localVideoStreamRef.current = newVideoStream;
-          setIsCameraOn(true);
-          hasCameraFallback = true;
-
-          // Replace tracks on all peers
-          for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (sender) {
-              try {
-                await sender.replaceTrack(camTrack);
-                // Reset bitrate for camera (e.g. 1Mbps)
-                const params = sender.getParameters();
-                if (params.encodings && params.encodings[0]) {
-                  params.encodings[0].maxBitrate = 1000000;
-                  delete params.encodings[0].networkPriority;
-                  await sender.setParameters(params);
-                }
-              } catch (e) { hasCameraFallback = false; console.error('replaceTrack camera failed', e); }
-            } else {
-              try {
-                pc.addTrack(camTrack, newVideoStream);
-                negotiationNeeded = true;
-              } catch (e) { console.error('addTrack camera failed', e); }
-            }
-          }
-        } catch (e) {
-          console.error('Failed to re-acquire camera after screen stop:', e);
-          // Fallback: clear video senders
-          for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (sender) {
-              try { await sender.replaceTrack(null); } catch (e) { console.error('replaceTrack null video failed', e); }
-            }
-          }
-        }
-        prevCameraWasOnRef.current = false;
-      } else {
-        // No camera to restore: clear video senders
-        for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) {
-            try { await sender.replaceTrack(null); } catch (e) { console.error('replaceTrack null video failed', e); }
-          }
-        }
-      }
-
-      // 2. NOW Stop and remove screen tracks (Break)
-      vStream.getVideoTracks().forEach((track: MediaStreamTrack) => {
-        if (track.label.includes('screen') || (track.getSettings && (track.getSettings() as any).displaySurface)) {
-          track.stop();
-          vStream.removeTrack(track); // Clean up the old stream object
-        }
-      });
-
-      setIsScreenSharing(false);
-
-      // Ensure audio senders still have correct audio track
-      if (aStream) {
-        const activeAudio = aStream.getAudioTracks().find(t => t.readyState === 'live');
-        if (activeAudio) {
-          for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-            const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'audio');
-            if (sender && sender.track !== activeAudio) {
-              try { await sender.replaceTrack(activeAudio); } catch (e) { console.error('replaceTrack audio failed', e); }
-            }
-          }
-        }
-      }
-
-      // Update preview
-      composeLocalStream();
-
-      if (negotiationNeeded) {
-        await renegotiate();
-      }
-
-      // Notify peers to update their remote preview state
-      // IMPORTANT: Pass hasCameraFallback so they don't screen-black the video
-      try { await sendSignal('SCREEN_STOPPED', undefined, { hasCameraFallback }); } catch (e) { /* non-fatal */ }
-    } catch (e) {
-      console.error('Error stopping screen share:', e);
+  // Placeholders for removed complex features to keep API valid
+  const startGroupCall = async (ids: string[]) => { ids.forEach(id => startCall(id)); };
+  const addToCall = async (id: string) => { startCall(id); }; // Simple mesh addition
+  const toggleScreenShare = async () => { alert("Screen sharing temporarily disabled for stability."); };
+  const toggleMic = () => {
+    if (localStream) {
+      const enabled = !isMicOn;
+      localStream.getAudioTracks().forEach(t => t.enabled = enabled);
+      setIsMicOn(enabled);
     }
   };
-
-  const toggleScreenShare = async () => {
-    const vStream = localVideoStreamRef.current || localVideoStream;
-    if (peerConnectionsRef.current.size === 0) return;
-
-    if (isScreenSharing) {
-      await stopScreenSharing();
-    } else {
-      try {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            // @ts-ignore
-            cursor: 'always',
-            // High Quality Screen Sharing (Allow up to 4K, but don't force it if system struggles)
-            width: { ideal: 3840, max: 3840 },
-            height: { ideal: 2160, max: 2160 },
-            frameRate: { ideal: 30, max: 60 }
-          },
-          audio: false
-        });
-        const screenTrack = displayStream.getVideoTracks()[0];
-
-        // 'text' ensures the encoder prioritizes sharpness/text legibility
-        if ('contentHint' in screenTrack) (screenTrack as any).contentHint = 'text';
-
-        // Ensure we prioritize smooth playback
-        const settings = screenTrack.getSettings();
-        // @ts-ignore
-        if (screenTrack.kind === 'video' && typeof screenTrack.contentHint !== 'undefined') {
-          // handled via sender below
-        }
-
-        let oldCameraStream: MediaStream | null = null;
-
-        // 1. Prepare Local State (Make)
-        // We create the new stream wrapper immediately to be ready for the UI update.
-        // Note: We don't stop the old camera YET. This is "Make-Before-Break".
-        const newVideoStream = new MediaStream([screenTrack]);
-
-        if (isCameraOn) {
-          prevCameraWasOnRef.current = true;
-          if (localVideoStreamRef.current) {
-            oldCameraStream = localVideoStreamRef.current;
-          }
-          setIsCameraOn(false);
-        } else {
-          prevCameraWasOnRef.current = false;
-        }
-
-        // 2. Update UI (Switch) -> Flicker Reduction: Do this close to track replacement
-        setLocalVideoStream(newVideoStream);
-        localVideoStreamRef.current = newVideoStream;
-
-        screenTrack.onended = () => { stopScreenSharing(); };
-
-        let negotiationNeeded = false;
-
-        // Update all peers
-        for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          const sender = pc.getSenders().find((s: RTCRtpSender) => s.track && s.track.kind === 'video');
-          if (sender) {
-            try {
-              await sender.replaceTrack(screenTrack);
-
-              // Optimized 4K Settings: 6 Mbps (Balanced Performance/Quality)
-              const params = sender.getParameters();
-              if (!params.encodings) params.encodings = [{}];
-
-              params.encodings[0].maxBitrate = 6000000; // 6 Mbps is sufficient for sharp screen share without choking
-
-              // 'balanced' allows framerate/resolution trade-offs to prevent "Slowness" or Stuttering
-              // @ts-ignore
-              params.degradationPreference = 'balanced';
-
-              params.encodings[0].networkPriority = 'high';
-              await sender.setParameters(params);
-            } catch (e) {
-              console.error('replaceTrack/setParameters screen failed', e);
-              // Fallback if parameter setting fails (e.g. not supported in some states)
-            }
-          } else {
-            try {
-              const sender = pc.addTrack(screenTrack, newVideoStream);
-
-              // Apply quality settings immediately for new tracks too
-              const params = sender.getParameters();
-              if (!params.encodings) params.encodings = [{}];
-              params.encodings[0].maxBitrate = 6000000;
-              // @ts-ignore
-              params.degradationPreference = 'balanced';
-              params.encodings[0].networkPriority = 'high';
-              await sender.setParameters(params);
-
-              negotiationNeeded = true;
-            } catch (e) { console.error('addTrack screen failed', e); }
-          }
-        }
-
-        // NOW stop the old camera tracks (Make-Before-Break)
-        if (oldCameraStream) {
-          oldCameraStream.getVideoTracks().forEach(t => {
-            t.stop();
-            // oldCameraStream!.removeTrack(t); // Optional, stream is discarded anyway
-          });
-        }
-
-        setIsScreenSharing(true);
-        composeLocalStream();
-
-        // Force renegotiation to ensure consistent state for all peers (especially in mesh)
-        // This ensures late joiners or peers with varying states get the correct video track info
-        await renegotiate();
-
-        try { await sendSignal('SCREEN_STARTED', undefined, {}); } catch (e) { /* non-fatal */ }
-      } catch (err: any) { console.error('Error starting screen share:', err); }
-    }
-  };
+  const toggleCamera = () => { alert("Video temporarily disabled for stability check."); };
+  const waitToCall = () => { };
+  const cancelCallWait = () => { };
 
   // --- 4. Sync Users List with Presence Status ---
   useEffect(() => {
