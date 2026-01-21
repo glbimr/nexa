@@ -103,14 +103,12 @@ const getRTCConfig = (): RTCConfiguration => {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 
   return {
-    iceTransportPolicy: 'relay', // FORCE RELAY: This ensures all traffic goes through the TURN server (Proxy)
+    iceTransportPolicy: 'all', // Changed from 'relay' to 'all' to allow P2P/Srflx candidates if Relay fails. Critical fallback.
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 2,
     iceServers: [
       // 1. Self-Hosted Proxy (TURN)
-      // This is the "Self Hosted Protocol" requested.
-      // It proxies connections so all users appear to be at one IP (the server's IP).
       {
         urls: `turn:${hostname}:3478`,
         username: 'username',
@@ -129,12 +127,14 @@ const getRTCConfig = (): RTCConfiguration => {
         credential: 'openrelayproject'
       },
 
-      // 3. STUN Servers (Still useful for gathering candidates, though relays are preferred/forced)
+      // 3. STUN Servers
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:global.stun.twilio.com:3478' }
     ]
   };
 };
+
+
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Initialize currentUser from localStorage if available
@@ -1287,8 +1287,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       pc.ontrack = (event) => {
-        console.log(`Received track from ${recipientId}`, event.streams[0]);
-        setRemoteStreams(prev => new Map(prev).set(recipientId, event.streams[0]));
+        console.log(`Received track from ${recipientId} | Kind: ${event.track.kind} | Stream ID: ${event.streams[0]?.id || 'derived'}`);
+
+        setRemoteStreams(prev => {
+          const newMap = new Map(prev);
+          // If the browser gave us a stream, use it. Otherwise create one from the track.
+          // This handles cases where event.streams is empty (common in some Signaling/Browser combos).
+          const stream = event.streams[0] || new MediaStream([event.track]);
+
+          newMap.set(recipientId, stream);
+          return newMap;
+        });
       };
 
       peerConnectionsRef.current.set(recipientId, pc);
