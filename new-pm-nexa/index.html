@@ -6,6 +6,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Setu</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          backgroundColor: {
+            // Light components -> Dark components switch
+            'slate-50': '#0f172a', // Main background -> Slate 900
+            'white': '#1e293b',    // Cards/Panels -> Slate 800
+            'slate-100': '#334155', // Hover states -> Slate 700
+            'slate-200': '#475569', // Secondary inputs -> Slate 600
+            
+            // Dark components -> Stay dark or get darker
+            'slate-900': '#020617', // Sidebar -> Slate 950
+            'slate-800': '#0f172a', // Sidebar hover -> Slate 900
+            
+            // Accents
+            'indigo-50': '#312e81', // Very light indigo -> Very dark indigo
+            'indigo-100': '#3730a3',
+            'indigo-600': '#6366f1', // Indigo 600 -> Indigo 500 (brighter on dark)
+            'indigo-700': '#4f46e5', // Hover -> Indigo 600
+            'rose-500': '#f43f5e',
+            'emerald-500': '#10b981',
+            'amber-100': '#451a03', // Warning bg -> Dark amber
+          },
+          textColor: {
+            // Light components text (Dark -> Light)
+            'slate-900': '#f8fafc', // Primary text -> Slate 50
+            'slate-800': '#f1f5f9', // Text -> Slate 100
+            'slate-700': '#e2e8f0', // Text -> Slate 200
+            'slate-600': '#cbd5e1', // Text -> Slate 300
+            'slate-500': '#94a3b8', // Muted text -> Slate 400
+            'slate-400': '#64748b', // Disabled/Icon -> Slate 500
+            
+            // Dark components text (Light -> Light)
+            'white': '#f8fafc', // Keep white as white-ish
+            
+             // Accents
+            'indigo-600': '#818cf8', // Indigo 600 -> Indigo 400 (visible on dark)
+            'amber-600': '#fbbf24', // Amber text -> Lighter
+          },
+          borderColor: {
+            'slate-50': '#1e293b',
+            'white': '#1e293b', // Border matching card bg
+            'slate-100': '#1e293b',
+            'slate-200': '#334155', // Common border -> Slate 700
+            'slate-300': '#475569',
+             // Sidebar borders
+            'slate-800': '#1e293b', // Sidebar divider -> Slate 800
+            'slate-700': '#334155',
+          }
+        }
+      }
+    }
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -19,16 +73,16 @@
     }
 
     ::-webkit-scrollbar-track {
-      background: transparent;
+      background: #0f172a; /* Dark track */
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
+      background: #475569; /* Darker thumb */
       border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
+      background: #64748b;
     }
 
     /* Utility to hide scrollbar but allow scrolling */
