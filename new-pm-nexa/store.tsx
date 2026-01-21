@@ -97,33 +97,43 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
-const RTC_CONFIG: RTCConfiguration = {
-  iceTransportPolicy: 'all',
-  bundlePolicy: 'max-bundle', // Critical for Symmetric NATs: Multiplex all media on one port
-  rtcpMuxPolicy: 'require',
-  iceCandidatePoolSize: 2, // Moderate pool to speed up connection without port exhaustion
-  iceServers: [
-    // 1. Open Relay Project (TURN) - Reliable Free TURN for Symmetric NAT (Jio Fiber, Airtel, Corporate Firewalls)
-    // Run by Metered.ca - Supports TCP/UDP on ports 80/443 to bypass strict firewalls
-    {
-      urls: [
-        'stun:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
+// Configuration for WebRTC (Proxy / TURN Setup)
+// We use a function to allow dynamic IP configuration based on the current host
+const getRTCConfig = (): RTCConfiguration => {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 
-    // 2. Primary STUN (Google) - High availability global STUN for non-symmetric NATs
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
+  return {
+    iceTransportPolicy: 'relay', // FORCE RELAY: This ensures all traffic goes through the TURN server (Proxy)
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require',
+    iceCandidatePoolSize: 2,
+    iceServers: [
+      // 1. Self-Hosted Proxy (TURN)
+      // This is the "Self Hosted Protocol" requested.
+      // It proxies connections so all users appear to be at one IP (the server's IP).
+      {
+        urls: `turn:${hostname}:3478`,
+        username: 'username',
+        credential: 'password'
+      },
 
-    // 3. Secondary STUN (Twilio) - Robust backup
-    { urls: 'stun:global.stun.twilio.com:3478' }
-  ]
+      // 2. Open Relay Project (Backup TURN)
+      {
+        urls: [
+          'stun:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+
+      // 3. STUN Servers (Still useful for gathering candidates, though relays are preferred/forced)
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ]
+  };
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -1490,7 +1500,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- WebRTC Logic (Audio + Screen Share Only) ---
 
   const createPeerConnection = (recipientId: string) => {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection(getRTCConfig());
 
     // Connection Timeout Logic: Auto-hangup if connection is not established within 30s
     // This allows every participant (Caller and peers) to independently clean up if a user doesn't answer/connect.
