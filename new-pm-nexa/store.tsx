@@ -101,13 +101,15 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Cloudflare provides a global, anycast TURN service for reliable NAT traversal
 const getRTCConfig = (): RTCConfiguration => {
   return {
-    // FORCE relay to ensure connectivity across different networks (restrictive NATs/Firewalls)
-    // This satisfies the requirement: "must be proxied to a free open-source proxy ip"
-    iceTransportPolicy: 'relay',
+    // HYBRID PROXY MODE:
+    // Uses "all" to allow P2P if available, BUT the ICE Server list prioritizes the Open Relay (vpn-like).
+    // This fixes Error 701 (Failed to Establish Connection) on networks blocking strict relays,
+    // while still offering the Proxy Tunnel for users on different networks (WiFi/Data).
+    iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    iceCandidatePoolSize: 10,
-    iceServers: getCurrentICEServers() // Includes Cloudflare + Metered Open Relay
+    iceCandidatePoolSize: 0, // Disable pool to prevent stale candidate errors on strict NATs
+    iceServers: getCurrentICEServers()
   };
 };
 
