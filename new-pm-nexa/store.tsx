@@ -101,15 +101,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Cloudflare provides a global, anycast TURN service for reliable NAT traversal
 const getRTCConfig = (): RTCConfiguration => {
   return {
-    // HYBRID PROXY MODE:
-    // Uses "all" to allow P2P if available, BUT the ICE Server list prioritizes the Open Relay (vpn-like).
-    // This fixes Error 701 (Failed to Establish Connection) on networks blocking strict relays,
-    // while still offering the Proxy Tunnel for users on different networks (WiFi/Data).
-    iceTransportPolicy: 'all',
+    iceTransportPolicy: 'all', // Use both STUN and TURN
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    iceCandidatePoolSize: 0, // Disable pool to prevent stale candidate errors on strict NATs
-    iceServers: getCurrentICEServers()
+    iceCandidatePoolSize: 10, // Pre-gather candidates for faster connection
+    iceServers: getCurrentICEServers() // Get Cloudflare TURN or fallback STUN
   };
 };
 
@@ -1271,54 +1267,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error(`[ICE] Candidate error for ${recipientId}:`, event);
       };
 
-      pc.oniceconnectionstatechange = async () => {
+      pc.oniceconnectionstatechange = () => {
         console.log(`[ICE] Connection state for ${recipientId}: ${pc.iceConnectionState}`);
         setConnectionState(prev => new Map(prev).set(recipientId, pc.iceConnectionState));
 
-        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-          // Connection established! Let's reveal HOW it connected (P2P vs Relay)
-          try {
-            const stats = await pc.getStats();
-            let activeCandidatePair: any = null;
-            stats.forEach(report => {
-              if (report.type === 'transport') {
-                const selectedPairId = report.selectedCandidatePairId;
-                if (selectedPairId && stats.has(selectedPairId)) {
-                  activeCandidatePair = stats.get(selectedPairId);
-                }
-              }
-            });
-
-            // Fallback search logic if transport stat isn't helpful
-            if (!activeCandidatePair) {
-              stats.forEach(report => {
-                if (report.type === 'candidate-pair' && report.selected) {
-                  activeCandidatePair = report;
-                }
-              });
-            }
-
-            if (activeCandidatePair) {
-              const local = stats.get(activeCandidatePair.localCandidateId);
-              const remote = stats.get(activeCandidatePair.remoteCandidateId);
-              console.log(`✅ CALL CONNECTED via ${local?.protocol?.toUpperCase()}!`);
-              console.log(`   Type: ${local?.candidateType} <-> ${remote?.candidateType}`); // Look for 'relay' here
-              console.log(`   Local: ${local?.ip}:${local?.port}`);
-              console.log(`   Remote: ${remote?.ip}:${remote?.port}`);
-
-              if (local?.candidateType === 'relay' || remote?.candidateType === 'relay') {
-                console.log("   🛡️ PRIVACY/PROXY ACTIVE: Using TURN Server Tunnel");
-              } else {
-                console.log("   ⚠️ DIRECT P2P: No Proxy used (Local Network/NAT)");
-              }
-            }
-          } catch (e) {
-            console.error("Error fetching stats:", e);
-          }
-        }
-
         if (pc.iceConnectionState === 'failed') {
           console.error(`[ICE] Connection FAILED for ${recipientId}. Check if TURN servers are reachable.`);
+          // Log selected candidate pair for debugging
+          pc.getStats().then(stats => {
+            stats.forEach(report => {
+              if (report.type === 'candidate-pair' && report.selected) {
+                console.log('[ICE] Selected candidate pair:', report);
+              }
+            });
+          });
         }
       };
 
@@ -1460,83 +1422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Placeholders for removed complex features to keep API valid
   const startGroupCall = async (ids: string[]) => { ids.forEach(id => startCall(id)); };
   const addToCall = async (id: string) => { startCall(id); }; // Simple mesh addition
-  const toggleScreenShare = async () => {
-    if (isScreenSharing) {
-      // Stop Screen Share
-      if (localStream) {
-        // Revert to audio-only or camera if we were storing it? 
-        // For simplicity in this architecture, we just stop the video track and revert to Mic only
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.stop();
-          localStream.removeTrack(videoTrack);
-        }
-        setIsScreenSharing(false);
-        // Notify peers
-        if (activeCallData) {
-          // Re-negotiation needed usually, or just remove track. 
-          // Simple approach: Replace track in sender
-          peerConnectionsRef.current.forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) pc.removeTrack(sender);
-          });
-        }
-      }
-    } else {
-      // Start Screen Share
-      try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        const screenTrack = stream.getVideoTracks()[0];
-
-        if (localStream) {
-          // Add track to local stream for UI preview
-          localStream.addTrack(screenTrack);
-        } else {
-          // Should not happen if in call, but fallback
-          const newStream = new MediaStream([screenTrack]);
-          setLocalStream(newStream);
-        }
-
-        setIsScreenSharing(true);
-
-        // Add to active connections
-        peerConnectionsRef.current.forEach(async (pc) => {
-          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-          if (sender) {
-            await sender.replaceTrack(screenTrack);
-          } else {
-            pc.addTrack(screenTrack, localStream!);
-            // We might need to renegotiate here (Offer/Answer), but for simple adding 
-            // often just adding track works if transceiver exists, or requires renegotiation.
-            // For robustness in this setup without complex renegotiation logic, 
-            // we assume initial call didn't have video, so we need to renegotiate.
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            // We need to send this offer!
-            // Currently startCall logic does this, but we need a helper or just send signal manually
-            // sendSignal('OFFER', ... ) - but we don't have recipient ID easily in this scope iteration without map key
-            // actually we do:
-            // We are iterating map, key is recipientId
-          }
-        });
-
-        // Handling renegotiation for all peers
-        for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
-          // simplified: if we passed above, we did addTrack. Now renegotiate.
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          sendSignal('OFFER', recipientId, { sdp: offer });
-        }
-
-        screenTrack.onended = () => {
-          toggleScreenShare(); // Toggle off when user clicks "Stop Sharing" in browser UI
-        };
-
-      } catch (e) {
-        console.error("Screen share error:", e);
-      }
-    }
-  };
+  const toggleScreenShare = async () => { alert("Screen sharing temporarily disabled for stability."); };
   const toggleMic = () => {
     if (localStream) {
       const enabled = !isMicOn;
