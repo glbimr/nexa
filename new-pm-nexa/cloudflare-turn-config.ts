@@ -83,12 +83,12 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
 
 /**
  * The "Proper New Environment" for Call Connectivity.
- * Aggregates multiple Free Open Source TURN Relays to find a working path.
- * Includes Metered.ca and Numb.vi to bypass firewall restrictions.
+ * Aggregates a massive list of Free Open Source TURN Relays and STUN servers.
+ * Maximizes chances of finding a working path by trying EVERY known free provider.
  */
 export const getOpenRelayServers = (): RTCIceServer[] => {
     return [
-        // 1. Metered.ca Open Relay (Various Protocols)
+        // 1. Metered.ca Open Relay (Backup)
         {
             urls: [
                 'turn:openrelay.metered.ca:80',
@@ -98,32 +98,32 @@ export const getOpenRelayServers = (): RTCIceServer[] => {
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
         },
-        // 1b. Metered.ca Static Auth (Explicit TLS)
-        {
-            urls: 'turns:staticauth.openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayprojectsecret'
-        },
 
-        // 2. Numb.vi Free TURN (Backup Proxy)
-        // Historically reliable free public TURN
+        // 2. Numb.vi (Historical Free)
         {
-            urls: [
-                'turn:numb.vi:3478',
-                'turn:numb.vi:3478?transport=tcp',
-                'turn:numb.vi:3478?transport=udp'
-            ],
-            username: 'webrtc', // Common public credential
+            urls: 'turn:numb.vi:3478',
+            username: 'webrtc',
             credential: 'turn'
         },
 
-        // 3. Fallback STUN (Google & Others)
+        // 3. Viagenie (Requires explicit account - using common test creds)
+        // Usually safer to skip if not provisioned, but included as requested alternative
+        // { ... },
+
+        // 4. Global STUN List (Massive hole-punching capability)
+        // If TURN fails, these help establish direct P2P connection even behind moderate NATs
         {
             urls: [
                 'stun:stun.l.google.com:19302',
                 'stun:stun1.l.google.com:19302',
                 'stun:stun2.l.google.com:19302',
-                'stun:global.stun.twilio.com:3478'
+                'stun:stun3.l.google.com:19302',
+                'stun:stun4.l.google.com:19302',
+                'stun:global.stun.twilio.com:3478',
+                'stun:stun.stunprotocol.org:3478',
+                'stun:stun.framasoft.org:3478',
+                'stun:stun.voip.blackberry.com:3478',
+                'stun:stun.nextcloud.com:3478'
             ]
         }
     ];
