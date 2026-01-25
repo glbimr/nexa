@@ -74,7 +74,8 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
             urls: [
                 'turn:staticauth.openrelay.metered.ca:80',
                 'turn:staticauth.openrelay.metered.ca:443',
-                'turn:staticauth.openrelay.metered.ca:443?transport=tcp'
+                'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+                'turns:staticauth.openrelay.metered.ca:443?transport=tcp'
             ],
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
@@ -108,34 +109,26 @@ export const getFallbackICEServers = (): RTCIceServer[] => {
     console.warn('⚠️ Cloudflare TURN not configured - using metered.ca fallback with TURN relay');
 
     return [
-        // Cloudflare Public STUN
-        { urls: 'stun:stun.cloudflare.com:3478' },
-
-        // Google Public STUN servers
-        {
-            urls: [
-                'stun:stun.l.google.com:19302',
-                'stun:stun1.l.google.com:19302',
-                'stun:stun2.l.google.com:19302',
-                'stun:stun3.l.google.com:19302',
-                'stun:stun4.l.google.com:19302'
-            ]
-        },
-
-        // Metered.ca Open Relay (Public & Free) - No Account Required
+        // Metered.ca Open Relay (Backup/Alternative)
+        // Uses both TURN (UDP/TCP) and TURNS (TLS) for maximum firewall traversal
         {
             urls: [
                 'turn:staticauth.openrelay.metered.ca:80',
                 'turn:staticauth.openrelay.metered.ca:443',
-                'turn:staticauth.openrelay.metered.ca:443?transport=tcp'
+                'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+                'turns:staticauth.openrelay.metered.ca:443?transport=tcp' // Secure TLS - Critical for HTTPS/Vercel
             ],
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
         },
 
-        // Additional STUN fallbacks
-        { urls: 'stun:global.stun.twilio.com:3478' },
-        { urls: 'stun:stun.stunprotocol.org:3478' }
+        // Google Public STUN (High reliability fallback for minimal connectivity)
+        {
+            urls: [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302'
+            ]
+        }
     ];
 };
 
