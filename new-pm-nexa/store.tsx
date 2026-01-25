@@ -1248,9 +1248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (peerConnectionsRef.current.has(recipientId)) return peerConnectionsRef.current.get(recipientId)!;
 
       console.log(`Creating PC for ${recipientId} using PROXY (TURN)`);
-      const rtcConfig = getRTCConfig();
-      console.log('Using ICE Servers:', rtcConfig.iceServers); // DEBUG: Print exact config
-      const pc = new RTCPeerConnection(rtcConfig);
+      const pc = new RTCPeerConnection(getRTCConfig());
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
