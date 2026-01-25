@@ -83,47 +83,45 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
 
 /**
  * The "Proper New Environment" for Call Connectivity.
- * Aggregates a massive list of Free Open Source TURN Relays and STUN servers.
- * Maximizes chances of finding a working path by trying EVERY known free provider.
+ * STRATEGY: "TLS Tunnel First"
+ * 
+ * Instead of trying random UDP ports (which are often blocked), we prioritize
+ * TURNS (Secure TURN) over port 443. This makes the media traffic look like 
+ * standard HTTPS web traffic, effectively acting as a "VPN Proxy" for the call.
  */
 export const getOpenRelayServers = (): RTCIceServer[] => {
     return [
-        // 1. Metered.ca Open Relay (Backup)
+        // 1. 🛡️ SECURE VPN-LIKE TUNNEL (Priority)
+        // Uses TURNS (TLS) on Port 443. Most firewalls allow this as it looks like HTTPS.
         {
-            urls: [
-                'turn:openrelay.metered.ca:80',
-                'turn:openrelay.metered.ca:443',
-                'turn:openrelay.metered.ca:443?transport=tcp'
-            ],
+            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
         },
 
-        // 2. Numb.vi (Historical Free)
+        // 2. 🛡️ HTTP-LIKE TUNNEL (Backup)
+        // Uses TURN (TCP) on Port 80. Looks like standard HTTP.
         {
-            urls: 'turn:numb.vi:3478',
-            username: 'webrtc',
-            credential: 'turn'
+            urls: 'turn:openrelay.metered.ca:80?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayprojectsecret'
         },
 
-        // 3. Viagenie (Requires explicit account - using common test creds)
-        // Usually safer to skip if not provisioned, but included as requested alternative
-        // { ... },
+        // 3. 🛡️ STANDARD TURN (UDP Backup)
+        // Good for speed if firewall allows UDP on 443
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=udp',
+            username: 'openrelayproject',
+            credential: 'openrelayprojectsecret'
+        },
 
-        // 4. Global STUN List (Massive hole-punching capability)
-        // If TURN fails, these help establish direct P2P connection even behind moderate NATs
+        // 4. ⚡ FAST P2P (Google STUN)
+        // Only works if both users are on permissive networks or same WiFi.
+        // Kept for low-latency optimizations where possible.
         {
             urls: [
                 'stun:stun.l.google.com:19302',
-                'stun:stun1.l.google.com:19302',
-                'stun:stun2.l.google.com:19302',
-                'stun:stun3.l.google.com:19302',
-                'stun:stun4.l.google.com:19302',
-                'stun:global.stun.twilio.com:3478',
-                'stun:stun.stunprotocol.org:3478',
-                'stun:stun.framasoft.org:3478',
-                'stun:stun.voip.blackberry.com:3478',
-                'stun:stun.nextcloud.com:3478'
+                'stun:stun1.l.google.com:19302'
             ]
         }
     ];
