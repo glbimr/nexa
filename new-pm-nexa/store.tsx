@@ -1424,7 +1424,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Placeholders for removed complex features to keep API valid
   const startGroupCall = async (ids: string[]) => { ids.forEach(id => startCall(id)); };
   const addToCall = async (id: string) => { startCall(id); }; // Simple mesh addition
-  const toggleScreenShare = async () => { alert("Screen sharing temporarily disabled for stability."); };
+  const toggleScreenShare = async () => {
+    if (isScreenSharing) {
+      // Stop Screen Share
+      if (localStream) {
+        // Revert to audio-only or camera if we were storing it? 
+        // For simplicity in this architecture, we just stop the video track and revert to Mic only
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.stop();
+          localStream.removeTrack(videoTrack);
+        }
+        setIsScreenSharing(false);
+        // Notify peers
+        if (activeCallData) {
+          // Re-negotiation needed usually, or just remove track. 
+          // Simple approach: Replace track in sender
+          peerConnectionsRef.current.forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) pc.removeTrack(sender);
+          });
+        }
+      }
+    } else {
+      // Start Screen Share
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenTrack = stream.getVideoTracks()[0];
+
+        if (localStream) {
+          // Add track to local stream for UI preview
+          localStream.addTrack(screenTrack);
+        } else {
+          // Should not happen if in call, but fallback
+          const newStream = new MediaStream([screenTrack]);
+          setLocalStream(newStream);
+        }
+
+        setIsScreenSharing(true);
+
+        // Add to active connections
+        peerConnectionsRef.current.forEach(async (pc) => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) {
+            await sender.replaceTrack(screenTrack);
+          } else {
+            pc.addTrack(screenTrack, localStream!);
+            // We might need to renegotiate here (Offer/Answer), but for simple adding 
+            // often just adding track works if transceiver exists, or requires renegotiation.
+            // For robustness in this setup without complex renegotiation logic, 
+            // we assume initial call didn't have video, so we need to renegotiate.
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            // We need to send this offer!
+            // Currently startCall logic does this, but we need a helper or just send signal manually
+            // sendSignal('OFFER', ... ) - but we don't have recipient ID easily in this scope iteration without map key
+            // actually we do:
+            // We are iterating map, key is recipientId
+          }
+        });
+
+        // Handling renegotiation for all peers
+        for (const [recipientId, pc] of peerConnectionsRef.current.entries()) {
+          // simplified: if we passed above, we did addTrack. Now renegotiate.
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          sendSignal('OFFER', recipientId, { sdp: offer });
+        }
+
+        screenTrack.onended = () => {
+          toggleScreenShare(); // Toggle off when user clicks "Stop Sharing" in browser UI
+        };
+
+      } catch (e) {
+        console.error("Screen share error:", e);
+      }
+    }
+  };
   const toggleMic = () => {
     if (localStream) {
       const enabled = !isMicOn;
