@@ -114,7 +114,7 @@ Users must grant microphone permissions. The app handles this automatically.
 
 ### For Production Scale (>100 concurrent calls)
 Consider:
-1. **Paid TURN Service**: Twilio, Xirsys, or AWS-hosted coturn
+1. **Paid TURN Service**: Tw 
 2. **Self-Hosted TURN**: Run your own coturn server on VPS
 3. **SFU/MCU**: For group calls (>3 participants), use a media server
 

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { User, Project, Task, ChatMessage, UserRole, TaskStatus, Attachment, Group, ProjectAccessLevel, Notification, NotificationType, IncomingCall, SignalData, Meeting } from './types';
 import { supabase, fetchMessages } from './supabaseClient';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { getCurrentICEServers, initializeCloudfareTURN, refreshIfNeeded } from './cloudflare-turn-config';
 
 interface AppContextType {
   currentUser: User | null;
@@ -96,44 +97,15 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Configuration for WebRTC (Includes extensive public STUN servers to bypass NATs)
-// Configuration for WebRTC (Proxy / TURN Setup)
-// We use a function to allow dynamic IP configuration based on the current host
+// Configuration for WebRTC using Cloudflare TURN
+// Cloudflare provides a global, anycast TURN service for reliable NAT traversal
 const getRTCConfig = (): RTCConfiguration => {
   return {
-    iceTransportPolicy: 'all',
+    iceTransportPolicy: 'all', // Use both STUN and TURN
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    iceCandidatePoolSize: 10, // Increased to pre-gather more candidates
-    iceServers: [
-      // Google Public STUN servers
-      {
-        urls: [
-          'stun:stun.l.google.com:19302',
-          'stun:stun1.l.google.com:19302',
-          'stun:stun2.l.google.com:19302',
-          'stun:stun3.l.google.com:19302',
-          'stun:stun4.l.google.com:19302'
-        ]
-      },
-
-      // Metered.ca - Reliable free TURN servers (100GB/month free)
-      {
-        urls: [
-          'stun:stun.relay.metered.ca:80',
-          'turn:standard.relay.metered.ca:80',
-          'turn:standard.relay.metered.ca:80?transport=tcp',
-          'turn:standard.relay.metered.ca:443',
-          'turns:standard.relay.metered.ca:443?transport=tcp'
-        ],
-        username: '4f57fd31d4e8a754fe50800e',
-        credential: 'PnDfZ8aNm/0pjPVo'
-      },
-
-      // Additional STUN fallbacks
-      { urls: 'stun:global.stun.twilio.com:3478' },
-      { urls: 'stun:stun.stunprotocol.org:3478' }
-    ]
+    iceCandidatePoolSize: 10, // Pre-gather candidates for faster connection
+    iceServers: getCurrentICEServers() // Get Cloudflare TURN or fallback STUN
   };
 };
 
@@ -420,6 +392,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     fetchData();
+
+    // Initialize Cloudflare TURN credentials
+    initializeCloudfareTURN().then(() => {
+      console.log('📞 Cloudflare TURN initialized');
+    }).catch((err) => {
+      console.warn('Cloudflare TURN initialization failed (will use fallback):', err);
+    });
   }, [currentUser?.id]); // Re-fetch user-specific data when login state changes
 
   // --- 1.1 Fetch Deleted Messages ---
