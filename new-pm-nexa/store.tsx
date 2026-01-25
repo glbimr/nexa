@@ -1271,20 +1271,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error(`[ICE] Candidate error for ${recipientId}:`, event);
       };
 
-      pc.oniceconnectionstatechange = () => {
+      pc.oniceconnectionstatechange = async () => {
         console.log(`[ICE] Connection state for ${recipientId}: ${pc.iceConnectionState}`);
         setConnectionState(prev => new Map(prev).set(recipientId, pc.iceConnectionState));
 
-        if (pc.iceConnectionState === 'failed') {
-          console.error(`[ICE] Connection FAILED for ${recipientId}. Check if TURN servers are reachable.`);
-          // Log selected candidate pair for debugging
-          pc.getStats().then(stats => {
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          // Connection established! Let's reveal HOW it connected (P2P vs Relay)
+          try {
+            const stats = await pc.getStats();
+            let activeCandidatePair: any = null;
             stats.forEach(report => {
-              if (report.type === 'candidate-pair' && report.selected) {
-                console.log('[ICE] Selected candidate pair:', report);
+              if (report.type === 'transport') {
+                const selectedPairId = report.selectedCandidatePairId;
+                if (selectedPairId && stats.has(selectedPairId)) {
+                  activeCandidatePair = stats.get(selectedPairId);
+                }
               }
             });
-          });
+
+            // Fallback search logic if transport stat isn't helpful
+            if (!activeCandidatePair) {
+              stats.forEach(report => {
+                if (report.type === 'candidate-pair' && report.selected) {
+                  activeCandidatePair = report;
+                }
+              });
+            }
+
+            if (activeCandidatePair) {
+              const local = stats.get(activeCandidatePair.localCandidateId);
+              const remote = stats.get(activeCandidatePair.remoteCandidateId);
+              console.log(`✅ CALL CONNECTED via ${local?.protocol?.toUpperCase()}!`);
+              console.log(`   Type: ${local?.candidateType} <-> ${remote?.candidateType}`); // Look for 'relay' here
+              console.log(`   Local: ${local?.ip}:${local?.port}`);
+              console.log(`   Remote: ${remote?.ip}:${remote?.port}`);
+
+              if (local?.candidateType === 'relay' || remote?.candidateType === 'relay') {
+                console.log("   🛡️ PRIVACY/PROXY ACTIVE: Using TURN Server Tunnel");
+              } else {
+                console.log("   ⚠️ DIRECT P2P: No Proxy used (Local Network/NAT)");
+              }
+            }
+          } catch (e) {
+            console.error("Error fetching stats:", e);
+          }
+        }
+
+        if (pc.iceConnectionState === 'failed') {
+          console.error(`[ICE] Connection FAILED for ${recipientId}. Check if TURN servers are reachable.`);
         }
       };
 
