@@ -97,21 +97,15 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Configuration for WebRTC using FORCED TURN RELAY
-// This ensures ALL audio/video traffic goes through proxy servers
-// just like chat messages go through the backend server.
-// This guarantees connectivity across different WiFi networks, ISPs, firewalls, etc.
+// Configuration for WebRTC using Cloudflare TURN
+// Cloudflare provides a global, anycast TURN service for reliable NAT traversal
 const getRTCConfig = (): RTCConfiguration => {
   return {
-    // CRITICAL: Force 'relay' mode to ensure ALL traffic goes through TURN servers
-    // This is the KEY fix for audio not working across different networks/WiFi
-    // 'relay' = ONLY use TURN relay candidates (proxied like chat messages)
-    // 'all' = Try direct connections first (often fails across different networks)
-    iceTransportPolicy: 'relay', // FORCED PROXY MODE - guarantees audio works like chat
+    iceTransportPolicy: 'all', // Use both STUN and TURN
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 10, // Pre-gather candidates for faster connection
-    iceServers: getCurrentICEServers() // Get Cloudflare TURN or fallback FREE TURN servers
+    iceServers: getCurrentICEServers() // Get Cloudflare TURN or fallback STUN
   };
 };
 
@@ -1253,12 +1247,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       if (peerConnectionsRef.current.has(recipientId)) return peerConnectionsRef.current.get(recipientId)!;
 
-      const config = getRTCConfig();
-      console.log(`🔗 Creating PC for ${recipientId} with FORCED RELAY mode`);
-      console.log(`   iceTransportPolicy: ${config.iceTransportPolicy} (all traffic goes through proxy)`);
-      console.log(`   TURN servers: ${config.iceServers?.length || 0} configured`);
-
-      const pc = new RTCPeerConnection(config);
+      console.log(`Creating PC for ${recipientId} using PROXY (TURN)`);
+      const pc = new RTCPeerConnection(getRTCConfig());
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
@@ -1281,53 +1271,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log(`[ICE] Connection state for ${recipientId}: ${pc.iceConnectionState}`);
         setConnectionState(prev => new Map(prev).set(recipientId, pc.iceConnectionState));
 
-        // Handle connection failures with automatic ICE restart
-        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-          console.warn(`[ICE] Connection ${pc.iceConnectionState.toUpperCase()} for ${recipientId}. Attempting ICE restart...`);
-
-          // Log connection stats for debugging
-          pc.getStats().then(stats => {
-            let hasRelayCandidate = false;
-            stats.forEach(report => {
-              if (report.type === 'candidate-pair' && report.state === 'failed') {
-                console.error('[ICE] Failed candidate pair:', report);
-              }
-              if (report.type === 'local-candidate' && report.candidateType === 'relay') {
-                hasRelayCandidate = true;
-              }
-            });
-
-            if (!hasRelayCandidate) {
-              console.error('[ICE] NO RELAY CANDIDATES! Check if TURN servers are reachable.');
-            }
-          });
-
-          // Attempt ICE restart after a short delay
-          setTimeout(async () => {
-            try {
-              if (pc.connectionState !== 'closed' && pc.iceConnectionState !== 'connected') {
-                console.log(`[ICE] Triggering ICE restart for ${recipientId}...`);
-                const offer = await pc.createOffer({ iceRestart: true });
-                await pc.setLocalDescription(offer);
-                sendSignal('OFFER', recipientId, { sdp: offer });
-              }
-            } catch (e) {
-              console.error('[ICE] ICE restart failed:', e);
-            }
-          }, 2000); // Wait 2 seconds before restart attempt
-        }
-
-        // Log successful relay connection
-        if (pc.iceConnectionState === 'connected') {
-          console.log(`✅ [ICE] CONNECTED via RELAY (proxy) to ${recipientId}! Audio should work.`);
+        if (pc.iceConnectionState === 'failed') {
+          console.error(`[ICE] Connection FAILED for ${recipientId}. Check if TURN servers are reachable.`);
+          // Log selected candidate pair for debugging
           pc.getStats().then(stats => {
             stats.forEach(report => {
               if (report.type === 'candidate-pair' && report.selected) {
-                console.log('[ICE] Active connection:', {
-                  localType: report.localCandidateType || 'unknown',
-                  remoteType: report.remoteCandidateType || 'unknown',
-                  protocol: report.protocol || 'unknown'
-                });
+                console.log('[ICE] Selected candidate pair:', report);
               }
             });
           });
@@ -1361,15 +1311,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const startCall = async (recipientId: string) => {
-    console.log(`📞 Starting call to ${recipientId} via RELAY proxy...`);
-
-    // 0. Refresh TURN credentials to ensure proxy servers are available
-    try {
-      await refreshIfNeeded();
-    } catch (e) {
-      console.warn('Could not refresh TURN credentials, using cached/fallback:', e);
-    }
-
     // 1. UI State
     setIncomingCall(null);
     setIsInCall(true);
@@ -1408,15 +1349,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const acceptIncomingCall = async () => {
     if (!incomingCall || !incomingCall.offer) return;
     const { callerId, offer } = incomingCall;
-
-    console.log(`📞 Accepting call from ${callerId} via RELAY proxy...`);
-
-    // 0. Refresh TURN credentials to ensure proxy servers are available
-    try {
-      await refreshIfNeeded();
-    } catch (e) {
-      console.warn('Could not refresh TURN credentials, using cached/fallback:', e);
-    }
 
     setIncomingCall(null);
     setIsInCall(true);

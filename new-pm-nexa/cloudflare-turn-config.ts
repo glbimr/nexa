@@ -85,71 +85,18 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
 };
 
 /**
- * Fallback ICE servers with MULTIPLE free open-source TURN servers
+ * Fallback ICE servers with metered.ca TURN
  * Used when Cloudflare credentials are not available
- * 
- * IMPORTANT: These are FREE, PUBLIC TURN relay servers for proxying WebRTC traffic
- * This ensures audio works across different networks/WiFi by routing through relay servers
- * just like chat messages are routed through the backend server.
+ * Includes TURN relay for better connectivity on restrictive networks
  */
 export const getFallbackICEServers = (): RTCIceServer[] => {
-    console.warn('⚠️ Cloudflare TURN not configured - using FREE public TURN relay servers');
+    console.warn('⚠️ Cloudflare TURN not configured - using metered.ca fallback with TURN relay');
 
     return [
-        // ==============================================
-        // PRIMARY: Open Relay Project - MOST RELIABLE FREE TURN
-        // 20GB free monthly, 99.999% uptime, global routing
-        // https://openrelayproject.org
-        // ==============================================
-        {
-            urls: [
-                // UDP - fastest when available
-                'turn:openrelay.metered.ca:80',
-                'turn:openrelay.metered.ca:443',
-                // TCP - works through most firewalls
-                'turn:openrelay.metered.ca:443?transport=tcp',
-                // TURNS (TLS) - most secure, works through corporate firewalls
-                'turns:openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-
-        // ==============================================
-        // SECONDARY: Static Auth Open Relay (alternative endpoint)
-        // ==============================================
-        {
-            urls: [
-                'turn:staticauth.openrelay.metered.ca:80',
-                'turn:staticauth.openrelay.metered.ca:443',
-                'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
-                'turns:staticauth.openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-
-        // ==============================================
-        // TERTIARY: Additional Free TURN servers
-        // ==============================================
-        {
-            urls: [
-                'turn:relay.metered.ca:80',
-                'turn:relay.metered.ca:443',
-                'turn:relay.metered.ca:443?transport=tcp',
-                'turns:relay.metered.ca:443?transport=tcp'
-            ],
-            username: 'e8647b5ceaa79a74da696ac2',
-            credential: 'SsL5dXcZoR1Fn0FU'
-        },
-
-        // ==============================================
-        // STUN servers (for ICE candidate gathering - used as fallback)
-        // ==============================================
         // Cloudflare Public STUN
         { urls: 'stun:stun.cloudflare.com:3478' },
 
-        // Google Public STUN servers (high reliability)
+        // Google Public STUN servers
         {
             urls: [
                 'stun:stun.l.google.com:19302',
@@ -160,7 +107,18 @@ export const getFallbackICEServers = (): RTCIceServer[] => {
             ]
         },
 
-        // Additional reliable STUN servers
+        // Metered.ca Open Relay (Public & Free) - No Account Required
+        {
+            urls: [
+                'turn:staticauth.openrelay.metered.ca:80',
+                'turn:staticauth.openrelay.metered.ca:443',
+                'turn:staticauth.openrelay.metered.ca:443?transport=tcp'
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayprojectsecret'
+        },
+
+        // Additional STUN fallbacks
         { urls: 'stun:global.stun.twilio.com:3478' },
         { urls: 'stun:stun.stunprotocol.org:3478' }
     ];
