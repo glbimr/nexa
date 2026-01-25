@@ -62,17 +62,32 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
         const data: CloudflareICEServers = await response.json();
 
         // Cloudflare returns iceServers object with urls array, username, and credential
-        cachedICEConfig = [{
+        const cloudflareServer = {
             urls: data.iceServers.urls,
             username: data.iceServers.username,
             credential: data.iceServers.credential
-        }];
+        };
+
+        // Metered.ca Open Relay (Backup/Alternative)
+        // Ensures we always have the "free open-source proxy" available as requested
+        const meteredServer = {
+            urls: [
+                'turn:staticauth.openrelay.metered.ca:80',
+                'turn:staticauth.openrelay.metered.ca:443',
+                'turn:staticauth.openrelay.metered.ca:443?transport=tcp'
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayprojectsecret'
+        };
+
+        cachedICEConfig = [cloudflareServer, meteredServer];
 
         // Set expiry time (24 hours from now, minus 5 min buffer)
         credentialsExpiry = now + (86400 - 300) * 1000;
 
         console.log('✅ Cloudflare TURN credentials fetched successfully');
         console.log(`   URLs: ${data.iceServers.urls.slice(0, 3).join(', ')}...`);
+        console.log(`   Included Metered Open Relay backup`);
         console.log(`   Expires in: ${((credentialsExpiry - now) / 1000 / 60 / 60).toFixed(1)} hours`);
 
         return cachedICEConfig;

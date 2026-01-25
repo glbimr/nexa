@@ -101,11 +101,13 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Cloudflare provides a global, anycast TURN service for reliable NAT traversal
 const getRTCConfig = (): RTCConfiguration => {
   return {
-    iceTransportPolicy: 'all', // Use both STUN and TURN
+    // FORCE relay to ensure connectivity across different networks (restrictive NATs/Firewalls)
+    // This satisfies the requirement: "must be proxied to a free open-source proxy ip"
+    iceTransportPolicy: 'relay',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    iceCandidatePoolSize: 10, // Pre-gather candidates for faster connection
-    iceServers: getCurrentICEServers() // Get Cloudflare TURN or fallback STUN
+    iceCandidatePoolSize: 10,
+    iceServers: getCurrentICEServers() // Includes Cloudflare + Metered Open Relay
   };
 };
 
