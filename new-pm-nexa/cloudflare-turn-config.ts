@@ -18,30 +18,31 @@ let cachedICEConfig: RTCIceServer[] | null = null;
 let credentialsExpiry = 0;
 
 /**
- * Fetches ICE servers configuration from Cloudflare TURN API
- * Credentials are cached and refreshed before expiry
+ * Fetches ICE servers configuration.
+ * Priority:
+ * 1. Cloudflare TURN (if configured in .env)
+ * 2. Metered.ca Open Relay (Free Public TURN) - Default
  */
 export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
     const now = Date.now();
 
-    // Return cached credentials if still valid (refresh 5 minutes before expiry)
+    // Return cached credentials if still valid
     if (cachedICEConfig && credentialsExpiry > now + 5 * 60 * 1000) {
-        console.log('Using cached Cloudflare TURN credentials');
         return cachedICEConfig;
     }
 
+    const TURN_KEY_ID = import.meta.env.VITE_CLOUDFLARE_TURN_KEY_ID;
+    const TURN_API_TOKEN = import.meta.env.VITE_CLOUDFLARE_TURN_API_TOKEN;
+
+    // 1. If Cloudflare is NOT configured, use the Free Open Relay (Default)
+    if (!TURN_KEY_ID || !TURN_API_TOKEN || TURN_KEY_ID.includes('your_turn_key')) {
+        console.log('Using Free Open-Source TURN Relay (Metered.ca)');
+        return getOpenRelayServers();
+    }
+
+    // 2. Otherwise try to fetch Cloudflare credentials
     try {
-        const TURN_KEY_ID = import.meta.env.VITE_CLOUDFLARE_TURN_KEY_ID;
-        const TURN_API_TOKEN = import.meta.env.VITE_CLOUDFLARE_TURN_API_TOKEN;
-
-        if (!TURN_KEY_ID || !TURN_API_TOKEN) {
-            console.warn('⚠️ Cloudflare TURN credentials not configured in .env.local');
-            console.warn('Add VITE_CLOUDFLARE_TURN_KEY_ID and VITE_CLOUDFLARE_TURN_API_TOKEN');
-            return getFallbackICEServers();
-        }
-
-        console.log('Fetching fresh Cloudflare TURN credentials...');
-
+        console.log('Fetching Cloudflare TURN credentials...');
         const response = await fetch(
             `https://rtc.live.cloudflare.com/v1/turn/keys/${TURN_KEY_ID}/credentials/generate`,
             {
@@ -50,79 +51,51 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
                     'Authorization': `Bearer ${TURN_API_TOKEN}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ ttl: 86400 }) // 24 hours
+                body: JSON.stringify({ ttl: 86400 })
             }
         );
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Cloudflare TURN API error ${response.status}: ${errorText}`);
+            throw new Error(`API Error ${response.status}`);
         }
 
         const data: CloudflareICEServers = await response.json();
 
-        // Cloudflare returns iceServers object with urls array, username, and credential
-        const cloudflareServer = {
-            urls: data.iceServers.urls,
-            username: data.iceServers.username,
-            credential: data.iceServers.credential
-        };
+        // Combine Cloudflare with Open Relay for maximum reliability
+        cachedICEConfig = [
+            {
+                urls: data.iceServers.urls,
+                username: data.iceServers.username,
+                credential: data.iceServers.credential
+            },
+            ...getOpenRelayServers()
+        ];
 
-        // Metered.ca Open Relay (Backup/Alternative)
-        // Ensures we always have the "free open-source proxy" available as requested
-        const meteredServer = {
-            urls: [
-                'turn:staticauth.openrelay.metered.ca:80',
-                'turn:staticauth.openrelay.metered.ca:443',
-                'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
-                'turns:staticauth.openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayprojectsecret'
-        };
-
-        cachedICEConfig = [cloudflareServer, meteredServer];
-
-        // Set expiry time (24 hours from now, minus 5 min buffer)
         credentialsExpiry = now + (86400 - 300) * 1000;
-
-        console.log('✅ Cloudflare TURN credentials fetched successfully');
-        console.log(`   URLs: ${data.iceServers.urls.slice(0, 3).join(', ')}...`);
-        console.log(`   Included Metered Open Relay backup`);
-        console.log(`   Expires in: ${((credentialsExpiry - now) / 1000 / 60 / 60).toFixed(1)} hours`);
-
         return cachedICEConfig;
 
     } catch (error) {
-        console.error('❌ Failed to fetch Cloudflare TURN credentials:', error);
-        console.warn('Falling back to public STUN servers (no TURN relay)');
-        return getFallbackICEServers();
+        console.warn('Cloudflare fetch failed, using Open Relay default:', error);
+        return getOpenRelayServers();
     }
 };
 
 /**
- * Fallback ICE servers with metered.ca TURN
- * Used when Cloudflare credentials are not available
- * Includes TURN relay for better connectivity on restrictive networks
+ * The Free Open Relay Configuration
+ * Provided by the Metered.ca Open Relay Project
  */
-export const getFallbackICEServers = (): RTCIceServer[] => {
-    console.warn('⚠️ Cloudflare TURN not configured - using metered.ca fallback with TURN relay');
-
+export const getOpenRelayServers = (): RTCIceServer[] => {
     return [
-        // Metered.ca Open Relay (Backup/Alternative)
-        // Uses both TURN (UDP/TCP) and TURNS (TLS) for maximum firewall traversal
         {
             urls: [
                 'turn:staticauth.openrelay.metered.ca:80',
                 'turn:staticauth.openrelay.metered.ca:443',
                 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
-                'turns:staticauth.openrelay.metered.ca:443?transport=tcp' // Secure TLS - Critical for HTTPS/Vercel
+                'turns:staticauth.openrelay.metered.ca:443?transport=tcp' // Secure TLS
             ],
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
         },
-
-        // Google Public STUN (High reliability fallback for minimal connectivity)
         {
             urls: [
                 'stun:stun.l.google.com:19302',
@@ -132,27 +105,18 @@ export const getFallbackICEServers = (): RTCIceServer[] => {
     ];
 };
 
-/**
- * Get current ICE servers (returns cached or fallback immediately)
- * Use initializeCloudfareTURN() during app startup to pre-fetch credentials
- */
+// Backwards compatibility alias
+export const getFallbackICEServers = getOpenRelayServers;
+
 export const getCurrentICEServers = (): RTCIceServer[] => {
     if (cachedICEConfig && credentialsExpiry > Date.now()) {
         return cachedICEConfig;
     }
-    return getFallbackICEServers();
+    return getOpenRelayServers();
 };
 
-/**
- * Initialize Cloudflare TURN by pre-fetching credentials
- * Call this during app startup
- */
 export const initializeCloudfareTURN = async (): Promise<void> => {
-    try {
-        await fetchCloudflareICEServers();
-    } catch (error) {
-        console.error('Failed to initialize Cloudflare TURN:', error);
-    }
+    await fetchCloudflareICEServers();
 };
 
 /**
