@@ -83,12 +83,12 @@ export const fetchCloudflareICEServers = async (): Promise<RTCIceServer[]> => {
 
 /**
  * The "Proper New Environment" for Call Connectivity.
- * Uses the Metered.ca Open Relay Project which provides a free TURN server.
- * This routes traffic through port 80/443 to bypass Firewalls/NATs (VPN-like behavior).
+ * Aggregates multiple Free Open Source TURN Relays to find a working path.
+ * Includes Metered.ca and Numb.vi to bypass firewall restrictions.
  */
 export const getOpenRelayServers = (): RTCIceServer[] => {
     return [
-        // Primary: Metered Open Relay (Standard DNS)
+        // 1. Metered.ca Open Relay (Various Protocols)
         {
             urls: [
                 'turn:openrelay.metered.ca:80',
@@ -98,20 +98,32 @@ export const getOpenRelayServers = (): RTCIceServer[] => {
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
         },
-        // Backup: Static Auth DNS (Alternative resolution)
+        // 1b. Metered.ca Static Auth (Explicit TLS)
         {
-            urls: [
-                'turns:staticauth.openrelay.metered.ca:443?transport=tcp', // TLS Secure
-                'turn:staticauth.openrelay.metered.ca:80?transport=udp'
-            ],
+            urls: 'turns:staticauth.openrelay.metered.ca:443?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayprojectsecret'
         },
-        // Fallback: Google STUN (Low latency, good for initial hole punching)
+
+        // 2. Numb.vi Free TURN (Backup Proxy)
+        // Historically reliable free public TURN
+        {
+            urls: [
+                'turn:numb.vi:3478',
+                'turn:numb.vi:3478?transport=tcp',
+                'turn:numb.vi:3478?transport=udp'
+            ],
+            username: 'webrtc', // Common public credential
+            credential: 'turn'
+        },
+
+        // 3. Fallback STUN (Google & Others)
         {
             urls: [
                 'stun:stun.l.google.com:19302',
-                'stun:stun1.l.google.com:19302'
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+                'stun:global.stun.twilio.com:3478'
             ]
         }
     ];
