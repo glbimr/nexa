@@ -601,14 +601,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         switch (type) {
           case 'OFFER':
-            // Simple logic: If we are not in a call, WE RING. 
-            // If we are in a call, we could reject or merge. For simplicy, if not in call -> SHOW INCOMING
             if (!isInCallRef.current) {
+              // New Call -> Ring
               console.log("Received OFFER from", senderId);
               setIncomingCall({ callerId: senderId, timestamp: Date.now(), offer: signalPayload.sdp });
             } else {
-              // Busy logic ignored for simplicity - just ignore or log
-              console.warn("Received offer while in call, ignoring for stability");
+              // Renegotiation (Screen Share / Video Toggle)
+              if (activeCallDataRef.current?.participantIds.includes(senderId)) {
+                console.log("Received Renegotiation OFFER from", senderId);
+                const pc = peerConnectionsRef.current.get(senderId);
+                if (pc) {
+                  try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(signalPayload.sdp));
+                    // Create Answer
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    sendSignal('ANSWER', senderId, { sdp: answer });
+                  } catch (e) { console.error("Renegotiation failed", e); }
+                }
+              } else {
+                console.warn("Received offer from unknown/busy user while in call");
+              }
             }
             break;
 
